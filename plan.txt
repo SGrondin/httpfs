@@ -1,7 +1,0 @@
-Features "impressionantes"
-- Git
-- Discoverability: Fournir 1 IP au démarrage
-
-Décisions architecturales
-- Type de messages entre serveurs: Git
-- Type de communication avec les serveurs: HTTP

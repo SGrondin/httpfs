@@ -1,2 +1,6 @@
 _build/
 *.native
+*.cmx
+*.cmo
+*.cmi
+server

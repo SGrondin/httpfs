@@ -3,3 +3,5 @@ open Core.Std
 
 #require "lwt"
 open Lwt
+
+#load "cli.cmo"
