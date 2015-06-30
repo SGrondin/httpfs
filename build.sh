@@ -1,1 +1,1 @@
-corebuild -pkg unix,lwt,lwt.syntax,lwt.unix test.native
+corebuild -pkg unix,lwt,lwt.syntax,lwt.unix main.native
