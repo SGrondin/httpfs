@@ -17,4 +17,4 @@ Command line:
 
 `opam switch 4.02.1`
 
-`opam install core lwt`
+`opam install core lwt cohttp`

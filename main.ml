@@ -12,12 +12,9 @@ let command =
     ~summary:"Synchronized distributed Git filesystem"
     Command.Spec.(
       empty
-      +> anon (sequence ("command to execute" %: string))
-    ) (fun ll () ->
+    ) (fun () ->
       Lwt_unix.run (
-        Cli.exec (String.concat ~sep:" " ll)
-        >|= fun (code, out) ->
-          print_endline @@ out ^ "\n\n" ^ (Int.to_string code) ^ "\n"
+          
       )
     )
 
