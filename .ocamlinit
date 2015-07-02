@@ -7,3 +7,4 @@ open Lwt
 #require "cohttp.lwt"
 open Cohttp_lwt_unix
 
+#load "http.cmo"
