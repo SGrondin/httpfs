@@ -13,7 +13,8 @@ build: clean
 	@unlink main.native
 
 setup:
+	opam update
 	opam install core lwt cohttp
 
-# compile:
-	# ocamlfind ocamlc -c -thread -package lwt,core,lwt.syntax,lwt.unix, -syntax camlp4o cli.ml
+compile:
+	ocamlfind ocamlc -c -thread -package lwt,core,lwt.syntax,lwt.unix,cohttp.lwt -syntax camlp4o http.ml

@@ -4,4 +4,6 @@ open Core.Std
 #require "lwt"
 open Lwt
 
-#load "cli.cmo"
+#require "cohttp.lwt"
+open Cohttp_lwt_unix
+

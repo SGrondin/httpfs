@@ -14,7 +14,7 @@ let command =
       empty
     ) (fun () ->
       Lwt_unix.run (
-          
+          Http.make_server ()
       )
     )
 
