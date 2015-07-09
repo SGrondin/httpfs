@@ -12,9 +12,10 @@ let command =
     ~summary:"Synchronized distributed Git filesystem"
     Command.Spec.(
       empty
-    ) (fun () ->
+      +> anon (sequence ("cluster IPs" %: string))
+    ) (fun ips () ->
       Lwt_unix.run (
-          Http.make_server ()
+          Http.make_server ips ()
       )
     )
 
