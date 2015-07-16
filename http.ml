@@ -83,21 +83,23 @@ let lock ips req body =
 let post ips req body =
   let fname = get_filename req in
   match Hashtbl.find locked fname with
-  | Some el -> Server.respond_string ~status:`Conflict ~body:"This file already exists" ()
+  | Some el -> Server.respond_string ~status:`Conflict ~body:"" ()
   | None ->
     forward_to_others ips (`Other "LOCK") (Request.make ~meth:(`Other "LOCK") (Request.uri req)) body
     >>= fun (response, res_body) ->
       match Response.status response with
-      | `OK | `Not_found ->
+      | `OK ->
         (try_lwt (
           Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
             Lwt_io.write ch ""
             >>= fun () ->
-            return (response, res_body)
+              Hashtbl.set locked fname true;
+              return (response, res_body)
           )
         ) with
         | e -> critical_error e)
-      | `Conflict -> return (response, res_body)
+      (* Not_found is returned by forward_to_others when no hosts said OK *)
+      | `Conflict | `Not_found -> Server.respond_string ~status:`Conflict ~body:"" ()
       | _ -> Server.respond_string ~status:`Internal_server_error ~body:(Response.sexp_of_t response |> Sexp.to_string) ()
 
 let put req body =
@@ -124,7 +126,7 @@ let callback ips _ req body =
     | `POST -> post ips req body
     | `PUT -> put req body
     | `DELETE -> delete ips req body
-    | _ -> unimplemented "oops\n"
+    | meth -> unimplemented ("Method unimplemented: " ^ Cohttp.Code.string_of_method meth)
   ) with
   | e -> critical_error e
 
