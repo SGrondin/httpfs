@@ -12,7 +12,7 @@ let unimplemented body = Server.respond_string ~status:`OK ~body ()
 
 let forward_to_others ips meth req body =
   match Cohttp.Header.get (Request.headers req) "forwarded" with
-  | Some _ -> Server.respond_string ~status:`Not_found ~body:"" ()
+  | Some _ -> Server.respond_string ~status:`Bad_request ~body:"" ()
   | None ->
     List.map ~f:(fun ip ->
       let headers = Cohttp.Header.init_with "forwarded" "true" in
@@ -20,13 +20,13 @@ let forward_to_others ips meth req body =
       |> fun u -> Uri.with_scheme u (Some "http")
       |> fun u -> Uri.with_host u (Some ip)
       in
-      Client.call ~headers meth uri
+      Client.call ~headers ~body ~chunked:false meth uri
     ) ips
     |> Lwt_list.filter_p (fun task ->
-      task >|= fun (res, _) -> Response.status res <> `Not_found
+      task >|= fun (res, _) -> Response.status res = `OK
     )
     >>= (function
-    | [] -> Server.respond_string ~status:`Not_found ~body:"" ()
+    | [] -> Server.respond_string ~status:`Bad_request ~body:"" ()
     | x :: [] -> x
     | xs ->
       Lwt_list.map_p (map (Sexp.to_string <*> Response.sexp_of_t <*> fst)) xs
@@ -49,7 +49,7 @@ let get ips req body =
   >>= (function (r, _) as resp ->
     match Response.status r with
     | `Not_found -> forward_to_others ips `GET req body
-    | _ -> Lwt.return resp)
+    | _ -> return resp)
 
 let post = unimplemented "POST\n"
 
