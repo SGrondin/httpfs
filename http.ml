@@ -43,6 +43,7 @@ let get ips req body =
   let fname = get_filename req in
   Lwt_unix.stat fname
   >>= fun stats ->
+    let open Lwt_unix in
     match stats.st_kind with
     | S_DIR -> list_directory_content fname
     | _ -> Server.respond_file ~fname ()
