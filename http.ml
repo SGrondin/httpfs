@@ -34,9 +34,18 @@ let forward_to_others ips meth req body =
         Server.respond_string ~status:`Internal_server_error ~body:(List.to_string ~f:Fn.id ls) ()
     )
 
+let list_directory_content path =
+  Lwt_stream.fold (fun file -> fun acc -> acc ^ "\n" ^ file)
+    (Lwt_unix.files_of_directory path) ""
+  >>= fun body -> Server.respond_string ~status:`OK ~body ()
+
 let get ips req body =
   let fname = get_filename req in
-  Server.respond_file ~fname ()
+  Lwt_unix.stat fname
+  >>= fun stats ->
+    match stats.st_kind with
+    | S_DIR -> list_directory_content fname
+    | _ -> Server.respond_file ~fname ()
   >>= (function (r, _) as resp ->
     match Response.status r with
     | `Not_found -> forward_to_others ips `GET req body
