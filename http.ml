@@ -52,7 +52,8 @@ let list_directory_content path =
   Lwt_unix.files_of_directory path
   |> Lwt_stream.map_s (add_trailing_slash_if_directory path)
   |> Fn.flip (Lwt_stream.fold (fun file -> fun acc -> file ^ "\n" ^ acc)) ""
-  >>= fun body -> Server.respond_string ~status:`OK ~body ()
+  >>= fun body ->
+    Server.respond_string ~headers:(Cohttp.Header.init_with "is-directory" "true") ~status:`OK ~body ()
 
 let get ips req body =
   let fname = get_filename req in
