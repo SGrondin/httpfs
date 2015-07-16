@@ -10,7 +10,7 @@ let get_filename req =
 
 let unimplemented body = Server.respond_string ~status:`OK ~body ()
 
-let forward_to_others ips req body =
+let forward_to_others ips meth req body =
   match Cohttp.Header.get (Request.headers req) "forwarded" with
   | Some _ -> Server.respond_string ~status:`Not_found ~body:"" ()
   | None ->
@@ -20,7 +20,7 @@ let forward_to_others ips req body =
       |> fun u -> Uri.with_scheme u (Some "http")
       |> fun u -> Uri.with_host u (Some ip)
       in
-      Client.get ~headers uri
+      Client.call ~headers meth uri
     ) ips
     |> Lwt_list.filter_p (fun task ->
       task >|= fun (res, _) -> Response.status res <> `Not_found
@@ -39,7 +39,7 @@ let get ips req body =
   Server.respond_file ~fname ()
   >>= (function (r, _) as resp ->
     match Response.status r with
-    | `Not_found -> forward_to_others ips req body
+    | `Not_found -> forward_to_others ips `GET req body
     | _ -> Lwt.return resp)
 
 let post = unimplemented "POST\n"
