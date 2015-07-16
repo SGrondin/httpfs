@@ -34,9 +34,17 @@ let forward_to_others ips meth req body =
         Server.respond_string ~status:`Internal_server_error ~body:(List.to_string ~f:Fn.id ls) ()
     )
 
+let add_trailing_slash_if_directory filename =
+  Lwt_unix.stat filename
+  >|= (fun stats ->
+    match stats.Lwt_unix.st_kind with
+    | Unix.S_DIR -> filename ^ "/"
+    | _ -> filename)
+
 let list_directory_content path =
-  Lwt_stream.fold (fun file -> fun acc -> acc ^ "\n" ^ file)
-    (Lwt_unix.files_of_directory path) ""
+  Lwt_unix.files_of_directory path
+  |> Lwt_stream.map_s add_trailing_slash_if_directory
+  |> Fn.flip (Lwt_stream.fold (fun file -> fun acc -> file ^ "\n" ^ acc)) ""
   >>= fun body -> Server.respond_string ~status:`OK ~body ()
 
 let get ips req body =
