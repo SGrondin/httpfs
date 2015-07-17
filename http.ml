@@ -6,6 +6,8 @@ let (<*>) f g x = f (g x)
 
 let locked = Hashtbl.create ~hashable:String.hashable ()
 
+let lock_timeout = 1.5
+
 let get_filename req =
   let path = Uri.path (Request.uri req) in
   Sys.getcwd () ^ path
@@ -77,6 +79,7 @@ let lock ips req body =
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
     (* The file doesn't exist, lock it and return OK *)
     Hashtbl.set locked fname true;
+    ignore (Lwt_unix.timeout lock_timeout >|= fun () -> Hashtbl.remove locked fname);
     Server.respond_string ~status:`OK ~body:"" ()
   | e -> critical_error e
 
@@ -92,9 +95,7 @@ let post ips req body =
         (try_lwt (
           Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
             Lwt_io.write ch ""
-            >>= fun () ->
-              Hashtbl.set locked fname true;
-              return (response, res_body)
+            >|= fun () -> (response, res_body)
           )
         ) with
         | e -> critical_error e)
@@ -108,7 +109,7 @@ let put req body =
   let mode = Lwt_io.output in
   try_lwt (
     Lwt_io.with_file ~flags ~mode filename (Fn.flip Cohttp_lwt_body.write_body body <*> Lwt_io.write)
-    >>= function () ->
+    >>= fun () ->
         Server.respond_string ~status:`OK ~body:"" ()
   ) with
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
@@ -123,7 +124,7 @@ let callback ips _ req body =
     match Request.meth req with
     | `GET -> get ips req body
     | `Other "LOCK" -> lock ips req body
-    | `POST -> post ips req body
+    | `POST -> Lwt.pick [post ips req body; Lwt_unix.timeout lock_timeout >>= fun () -> critical_error (Failure "Timeout while acquiring lock")]
     | `PUT -> put req body
     | `DELETE -> delete ips req body
     | meth -> unimplemented ("Method unimplemented: " ^ Cohttp.Code.string_of_method meth)
