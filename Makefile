@@ -12,6 +12,9 @@ build: clean
 	@cp _build/main.native server
 	@unlink main.native
 
+dist: build
+	patchelf --set-rpath '$$ORIGIN/' server
+
 setup:
 	opam update
 	opam install core lwt cohttp utop
