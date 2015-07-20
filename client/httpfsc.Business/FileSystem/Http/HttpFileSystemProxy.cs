@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Threading.Tasks;
+
 using Flurl;
 using Flurl.Http;
 
@@ -10,14 +11,17 @@ namespace httpfsc.Business.FileSystem.Http
 {
     public class HttpFileSystemProxy
     {
-        public Url ServerPath
-        {
-            get { return new Url(ConfigurationManager.AppSettings.Get("ServerPath")); }
-        }
+        #region Properties
+
+        public Url ServerPath { get { return new Url(ConfigurationManager.AppSettings.Get("ServerPath")); } }
+
+        #endregion
+
+        #region Methods
 
         public async Task<IEnumerable<string>> ListDirectory(Url path)
         {
-            var files = await ServerPath
+            var files = await this.ServerPath
                 .AppendPathSegment(path)
                 .GetAsync();
 
@@ -35,7 +39,7 @@ namespace httpfsc.Business.FileSystem.Http
 
         public async void DownloadFile(Url path)
         {
-            var fileBytes = await ServerPath
+            var fileBytes = await this.ServerPath
                 .AppendPathSegment(path)
                 .GetAsync();
 
@@ -44,5 +48,7 @@ namespace httpfsc.Business.FileSystem.Http
                 throw new Exception();
             }
         }
+
+        #endregion
     }
 }

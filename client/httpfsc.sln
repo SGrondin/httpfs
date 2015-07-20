@@ -5,7 +5,7 @@ VisualStudioVersion = 12.0.21005.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "httpfsc", "httpfsc\httpfsc.csproj", "{11939B25-CC43-4EC7-B2B7-300DBB7DA8FB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "httpfsc.Business", "httpfsc.Data\httpfsc.Business.csproj", "{A66ECEEE-0A82-4D08-A148-8E6DC0CA86ED}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "httpfsc.Business", "httpfsc.Business\httpfsc.Business.csproj", "{A66ECEEE-0A82-4D08-A148-8E6DC0CA86ED}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
