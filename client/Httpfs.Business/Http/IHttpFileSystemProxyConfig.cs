@@ -1,8 +1,6 @@
 ﻿using System;
 
-using Flurl;
-
-namespace httpfsc.Business.FileSystem.Http
+namespace httpfsc.Business.Http
 {
     public interface IHttpFileSystemProxyConfig
     {

@@ -2,9 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using Flurl;
-
-namespace Httpfs.Client.Business.FileSystem.Results.List
+namespace httpfsc.Business.Http.FileSystem.Results.List
 {
     public class ListDirectoryResult
     {
@@ -30,10 +28,10 @@ namespace Httpfs.Client.Business.FileSystem.Results.List
 
         public static ListDirectoryResult FromResponse(string response)
         {
-            var splitResponse = response.Split(Environment.NewLine.ToCharArray()).Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+            var splitResponse =
+                response.Split(Environment.NewLine.ToCharArray()).Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
             var folders = splitResponse.Where(f => f.EndsWith("/")).ToList();
             var files = splitResponse.Except(folders);
-
 
             var list = new ListDirectoryResult();
             list.Folders = folders.Select(f => new Url(f));

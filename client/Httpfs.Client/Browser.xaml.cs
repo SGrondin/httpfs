@@ -1,14 +1,11 @@
 ﻿using System;
-using System.Windows;
 
-using Flurl;
-
-using Httpfs.Client.Business.FileSystem.Http;
+using httpfsc.Business.Http;
 
 namespace Httpfs.Client
 {
     /// <summary>
-    /// Interaction logic for MainWindow
+    ///     Interaction logic for MainWindow
     /// </summary>
     public partial class Browser
     {
@@ -16,8 +13,6 @@ namespace Httpfs.Client
 
         private readonly HttpFileSystemProxy _proxy;
         private readonly ClientConfig _config;
-
-        private Url _currentPath;
 
         #endregion
 
@@ -44,11 +39,7 @@ namespace Httpfs.Client
 
         #region Properties
 
-        private Url CurrentPath
-        {
-            get { return new Url(this._currentPath); }
-            set { this._currentPath = value; }
-        }
+        private Url CurrentPath { get; set; }
 
         #endregion
 
@@ -75,12 +66,9 @@ namespace Httpfs.Client
                 return;
             }
 
-            var absoluteSelectedPath = this.CurrentPath
-                .AppendPathSegment(selectedFile);
+            var absoluteSelectedPath = this.CurrentPath.Combine(selectedFile);
 
-            var downloadToUrl = this._config.LocalRoot
-                .AppendPathSegment(this.CurrentPath)
-                .AppendPathSegment(selectedFile);
+            var downloadToUrl = this._config.LocalRoot.Combine(absoluteSelectedPath);
 
             this._proxy.DownloadFile(absoluteSelectedPath, downloadToUrl);
         }
