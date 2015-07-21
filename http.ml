@@ -27,7 +27,11 @@ let forward_to_others ips meth (req, body) =
   match Cohttp.Header.get (Request.headers req) "forwarded" with
   | Some _ -> None
   | None -> Some (
-    Lwt_list.map_p (fun uri ->
+    Lwt_list.map_p (fun remote ->
+      let uri = Request.uri req
+      |> Fn.flip Uri.with_host (Uri.host remote)
+      |> Fn.flip Uri.with_port (Uri.port remote)
+      in
       let headers = Cohttp.Header.init_with "forwarded" "true" in
       Client.call ~headers ~body ~chunked:false meth uri
     ) ips)
