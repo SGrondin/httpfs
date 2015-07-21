@@ -4,4 +4,6 @@ _build/
 *.cmo
 *.cmi
 server
+httpfs
 *.dummy
+sandbox/
