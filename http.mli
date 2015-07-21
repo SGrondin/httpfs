@@ -6,7 +6,7 @@ type http_response = Response.t * Cohttp_lwt_body.t
 type http_request = Request.t * Cohttp_lwt_body.t
 type request_handler = Uri.t list -> http_request -> http_response Lwt.t
 
-val forward_to_others' :
+val forward_to_others :
   Uri.t list ->
   Code.meth ->
   http_request ->

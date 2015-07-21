@@ -20,4 +20,5 @@ setup:
 	opam install core lwt cohttp utop
 
 compile:
+	ocamlfind ocamlc -c -thread -package lwt,core,lwt.syntax,lwt.unix,cohttp.lwt -syntax camlp4o http.mli
 	ocamlfind ocamlc -c -thread -package lwt,core,lwt.syntax,lwt.unix,cohttp.lwt -syntax camlp4o http.ml

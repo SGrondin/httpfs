@@ -19,20 +19,11 @@ let critical_error e =
   print_endline body;
   Server.respond_string ~status:`Internal_server_error ~body ()
 
-let conflict () = Server.respond_string ~status:`Conflict ~body:"" ()
-let not_found () = Server.respond_string ~status:`Not_found ~body:"" ()
+let conflict = Server.respond_string ~status:`Conflict ~body:""
+let not_found = Server.respond_string ~status:`Not_found ~body:""
+let ok = Server.respond_string ~status:`OK ~body:""
 
-let forward_to_others ips meth req body =
-match Cohttp.Header.get (Request.headers req) "forwarded" with
-| Some _ ->
-Lwt.map (Fn.flip List.cons []) (Server.respond_string ~status:`Bad_request ~body:"" ())
-| None ->
-Lwt_list.map_p (fun uri ->
-let headers = Cohttp.Header.init_with "forwarded" "true" in
-Client.call ~headers ~body ~chunked:false meth uri
-) ips
-
-let forward_to_others' ips meth (req, body) =
+let forward_to_others ips meth (req, body) =
   match Cohttp.Header.get (Request.headers req) "forwarded" with
   | Some _ -> None
   | None -> Some (
@@ -44,7 +35,7 @@ let forward_to_others' ips meth (req, body) =
 let only_one_response ls =
   List.filter ~f:(function (resp, _) -> Response.status resp = `OK) ls
   |> function
-  | [] -> Server.respond_string ~status:`Not_found ~body:"" ()
+  | [] -> not_found ()
   | x :: [] -> return x
   | xs ->
     let xs' = List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst) xs in
@@ -69,7 +60,7 @@ let get ips (req, body) =
   >>= fun stats ->
     match Lwt_unix.(stats.st_kind) with
     | Unix.S_DIR ->
-      Option.value ~default:(return []) (forward_to_others' ips `GET (req, body))
+      Option.value ~default:(return []) (forward_to_others ips `GET (req, body))
       >>= fun contents ->
         if List.for_all ~f:is_resp_ok contents then
           (get_directory_content fname
@@ -97,7 +88,7 @@ let get ips (req, body) =
       Option.value_map
         ~default:(not_found ())
         ~f:(Fn.flip Lwt.bind only_one_response)
-        (forward_to_others' ips `GET (req, body))
+        (forward_to_others ips `GET (req, body))
     | _ -> return resp)
 
 let lock ips (req, body) =
@@ -109,7 +100,7 @@ let lock ips (req, body) =
     (* The file doesn't exist, lock it and return OK *)
     Hashtbl.set locked fname true;
     ignore (Lwt_unix.timeout lock_timeout >|= fun () -> Hashtbl.remove locked fname);
-    Server.respond_string ~status:`OK ~body:"" ()
+    ok ()
   | e -> critical_error e
 
 let post ips (req, body) =
@@ -118,17 +109,18 @@ let post ips (req, body) =
   match Hashtbl.find locked fname with
   | Some el -> conflict ()
   | None ->
-    forward_to_others ips (`Other "LOCK") (Request.make ~meth:(`Other "LOCK") (Request.uri req)) body
-    >>= fun responses ->
-      if List.for_all ~f:is_resp_ok responses then
-        (try_lwt (
-          Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
-            Lwt_io.write ch ""
-            >>= fun () -> Server.respond_string ~status:`OK ~body:"" ()
-          )
-        ) with e -> critical_error e)
-      (* Not_found is returned by only_one_response when no hosts said OK *)
-      else conflict ()
+    match forward_to_others ips (`Other "LOCK") ((Request.make ~meth:(`Other "LOCK") (Request.uri req)), body) with
+    | None -> critical_error (Failure "Impossible case, LOCK cannot be forwarded")
+    | Some x ->
+      x >>= fun responses ->
+        if List.for_all ~f:is_resp_ok responses then
+          (try_lwt (
+            Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
+              Lwt_io.write ch "" >>= ok
+            )
+          ) with e -> critical_error e)
+        (* Not_found is returned by only_one_response when no hosts said OK *)
+        else conflict ()
 
 let put ips (req, body) =
   let filename = get_filename req in
@@ -136,25 +128,25 @@ let put ips (req, body) =
   let mode = Lwt_io.output in
   try_lwt (
     Lwt_io.with_file ~flags ~mode filename (Fn.flip Cohttp_lwt_body.write_body body <*> Lwt_io.write)
-    >>= Server.respond_string ~status:`OK ~body:""
+    >>= ok
   ) with
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
     Option.value_map
       ~default:(not_found ())
       ~f:(Fn.flip Lwt.bind only_one_response)
-      (forward_to_others' ips `PUT (req, body))
+      (forward_to_others ips `PUT (req, body))
   | e -> critical_error e
 
 let delete ips (req, body) =
   let filename = get_filename req in
   try_lwt (
-    Lwt_unix.unlink filename >>= Server.respond_string ~status:`OK ~body:""
+    Lwt_unix.unlink filename >>= ok
   ) with
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
     Option.value_map
       ~default:(not_found ())
       ~f:(Fn.flip Lwt.bind only_one_response)
-      (forward_to_others' ips `DELETE (req, body))
+      (forward_to_others ips `DELETE (req, body))
   | e -> critical_error e
 
 let callback _ ips http_request =
