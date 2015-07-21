@@ -43,7 +43,17 @@ namespace httpfsc.Business.Http
 
         public Url Combine(Url url)
         {
-            return Path.Combine(this, url);
+            if (url == null || url == "/")
+            {
+                return this;
+            }
+
+            return Path.Combine(this._url, url._url.TrimStart('/'));
+        }
+
+        public Url GetDirectoryName()
+        {
+            return Path.GetDirectoryName(this);
         }
 
         #endregion
