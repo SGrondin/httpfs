@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Configuration;
-
-using Flurl;
-
-using httpfsc.Business.FileSystem.Http;
+using httpfsc.Business.Http;
 
 namespace Httpfs.Client
 {
