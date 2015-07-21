@@ -83,20 +83,18 @@ let post ips req body =
   | Some el -> conflict ()
   | None ->
     forward_to_others ips (`Other "LOCK") (Request.make ~meth:(`Other "LOCK") (Request.uri req)) body
-    >>= only_one_response
-    >>= fun (response, res_body) ->
-      match Response.status response with
-      | `OK ->
+    >>= fun responses ->
+      match List.dedup (List.map ~f:(Response.status <*> fst) responses) with
+      | [`OK] | [] ->
         (try_lwt (
           Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
             Lwt_io.write ch ""
-            >|= fun () -> (response, res_body)
+            >>= fun () -> Server.respond_string ~status:`OK ~body:"" ()
           )
         ) with
         | e -> critical_error e)
       (* Not_found is returned by only_one_response when no hosts said OK *)
-      | `Conflict | `Not_found -> conflict ()
-      | _ -> critical_error (Failure (Response.sexp_of_t response |> Sexp.to_string))
+      | _ -> conflict ()
 
 let put ips req body =
   let filename = get_filename req in
@@ -131,7 +129,7 @@ let format_ips raw =
     |> function
     | host :: port :: [] -> Uri.make ~scheme:"http" ~host ~port:(Int.of_string port) ()
     | host :: [] -> Uri.make ~scheme:"http" ~host ~port:default_port ()
-    | _ as arg -> failwith ("The command-line argument is not a valid IP: " ^ (String.concat ~sep:" " arg))
+    | _ -> failwith ("The command-line argument is not a valid IP: " ^ str)
   ) raw
 
 let make_server port ips () =
