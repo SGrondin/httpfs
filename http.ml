@@ -3,11 +3,8 @@ open Lwt
 open Cohttp_lwt_unix
 
 let default_port = 2020
-
 let (<*>) f g x = f (g x)
-
 let locked = Hashtbl.create ~hashable:String.hashable ()
-
 let lock_timeout = 1.5
 
 let get_filename req =
@@ -32,9 +29,10 @@ let forward_to_others ips meth req body =
       let headers = Cohttp.Header.init_with "forwarded" "true" in
       Client.call ~headers ~body ~chunked:false meth uri
     ) ips
-    >|= List.filter ~f:(function (resp, _) -> Response.status resp = `OK)
 
-let only_one_response = function
+let only_one_response ls =
+  List.filter ~f:(function (resp, _) -> Response.status resp = `OK) ls
+  |> function
   | [] -> Server.respond_string ~status:`Not_found ~body:"" ()
   | x :: [] -> return x
   | xs ->
