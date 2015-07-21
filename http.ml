@@ -2,6 +2,10 @@ open Core.Std
 open Lwt
 open Cohttp_lwt_unix
 
+type http_response = Response.t * Cohttp_lwt_body.t
+type http_request = Request.t * Cohttp_lwt_body.t
+type request_handler = Uri.t list -> http_request -> http_response Lwt.t
+
 let (<*>) f g x = f (g x)
 let locked = Hashtbl.create ~hashable:String.hashable ()
 let lock_timeout = 1.5
@@ -28,7 +32,7 @@ let headers = Cohttp.Header.init_with "forwarded" "true" in
 Client.call ~headers ~body ~chunked:false meth uri
 ) ips
 
-let forward_to_others' ips meth req body =
+let forward_to_others' ips meth (req, body) =
   match Cohttp.Header.get (Request.headers req) "forwarded" with
   | Some _ -> None
   | None -> Some (
@@ -65,7 +69,7 @@ let list_directory_content path =
   >>= fun body ->
     Server.respond_string ~headers:(Cohttp.Header.init_with "is-directory" "true") ~status:`OK ~body ()
 
-let get ips req body =
+let get ips (req, body) =
   let is_resp_ok (resp, _) = Response.status resp = `OK in
   let fname = get_filename req in
   Lwt_unix.stat fname
@@ -104,7 +108,7 @@ let get ips req body =
     | `Not_found -> forward_to_others ips `GET req body >>= only_one_response
     | _ -> return resp)
 
-let lock ips req body =
+let lock ips (req, body) =
   let fname = get_filename req in
   try_lwt (
     Lwt_io.with_file ~flags:[Unix.O_RDONLY] ~mode:Lwt_io.input fname (fun _ -> conflict ())
@@ -116,7 +120,7 @@ let lock ips req body =
     Server.respond_string ~status:`OK ~body:"" ()
   | e -> critical_error e
 
-let post ips req body =
+let post ips (req, body) =
   let fname = get_filename req in
   let is_resp_ok (resp, _) = Response.status resp = `OK in
   match Hashtbl.find locked fname with
@@ -134,7 +138,7 @@ let post ips req body =
       (* Not_found is returned by only_one_response when no hosts said OK *)
       else conflict ()
 
-let put ips req body =
+let put ips (req, body) =
   let filename = get_filename req in
   let flags = [Unix.O_WRONLY; Unix.O_TRUNC] in
   let mode = Lwt_io.output in
@@ -146,10 +150,10 @@ let put ips req body =
     Option.value_map
       ~default:(not_found ())
       ~f:(fun task -> task >>= only_one_response)
-      (forward_to_others' ips `PUT req body)
+      (forward_to_others' ips `PUT (req, body))
   | e -> critical_error e
 
-let delete ips req body =
+let delete ips (req, body) =
   let filename = get_filename req in
   try_lwt (
     Lwt_unix.unlink filename >>= Server.respond_string ~status:`OK ~body:""
@@ -158,18 +162,18 @@ let delete ips req body =
     Option.value_map
       ~default:(not_found ())
       ~f:(Fn.flip Lwt.bind only_one_response)
-      (forward_to_others' ips `DELETE req body)
+      (forward_to_others' ips `DELETE (req, body))
   | e -> critical_error e
 
-let callback ips _ req body =
+let callback _ ips http_request =
   ignore (List.map ~f:Uri.to_string ips |> String.concat ~sep:"  " |> print_endline);
   try_lwt (
-    match Request.meth req with
-    | `GET -> get ips req body
-    | `Other "LOCK" -> lock ips req body
-    | `POST -> Lwt.pick [post ips req body; Lwt_unix.timeout lock_timeout >>= fun () -> critical_error (Failure "Timeout while acquiring lock")]
-    | `PUT -> put ips req body
-    | `DELETE -> delete ips req body
+    match Request.meth (fst http_request) with
+    | `GET -> get ips http_request
+    | `Other "LOCK" -> lock ips http_request
+    | `POST -> Lwt.pick [post ips http_request; Lwt_unix.timeout lock_timeout >>= fun () -> critical_error (Failure "Timeout while acquiring lock")]
+    | `PUT -> put ips http_request
+    | `DELETE -> delete ips http_request
     | meth -> Server.respond_string ~status:`Method_not_allowed ~body:("Method unimplemented: " ^ Cohttp.Code.string_of_method meth) ()
   ) with
   | e -> critical_error e
@@ -177,5 +181,7 @@ let callback ips _ req body =
 let make_server port ips () =
   let ctx = Cohttp_lwt_unix_net.init () in
   let mode = `TCP (`Port port) in
-  let config_tcp = Server.make ~callback:(callback ips) () in
+  let config_tcp =
+    Server.make ~callback:(fun conn -> Tuple2.curry (callback conn ips)) ()
+  in
   Server.create ~ctx ~mode config_tcp
