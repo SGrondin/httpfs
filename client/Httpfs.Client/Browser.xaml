@@ -3,12 +3,29 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="HTTPFS Browser" Height="600" Width="900">
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"></ColumnDefinition>
-            <ColumnDefinition></ColumnDefinition>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50"></RowDefinition>
+            <RowDefinition></RowDefinition>
+        </Grid.RowDefinitions>
         
-        <ListView Name="FolderListView" Grid.Column="0"></ListView>
-        <ListView Name="CurrentFolderListView" Grid.Column="1"></ListView>
+        <Grid Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition></ColumnDefinition>
+                <ColumnDefinition></ColumnDefinition>
+            </Grid.ColumnDefinitions>
+            
+            <Button Grid.Column="0">New empty file</Button>
+            <Button Grid.Column="1">Upload file</Button>
+        </Grid>
+
+        <Grid Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200"></ColumnDefinition>
+                <ColumnDefinition></ColumnDefinition>
+            </Grid.ColumnDefinitions>
+
+            <ListView Name="FolderListView" Grid.Column="0"></ListView>
+            <ListView Name="CurrentFolderListView" Grid.Column="1"></ListView>
+        </Grid>
     </Grid>
 </Window>

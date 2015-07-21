@@ -56,6 +56,11 @@ namespace httpfsc.Business.Http
             return Path.GetDirectoryName(this);
         }
 
+        public Url GetFullPath()
+        {
+            return Path.GetFullPath(this);
+        }
+
         #endregion
     }
 }

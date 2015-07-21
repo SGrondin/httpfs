@@ -15,8 +15,6 @@ namespace httpfsc.Business.Http
 
         public HttpFileSystemProxy(IHttpFileSystemProxyConfig config)
         {
-            this.Config = config;
-
             this.Client = new RestClient { BaseUrl = new Uri(config.ServerRootPath) };
         }
 
@@ -24,7 +22,6 @@ namespace httpfsc.Business.Http
 
         #region Properties
 
-        private IHttpFileSystemProxyConfig Config { get; set; }
         private RestClient Client { get; set; }
 
         #endregion
@@ -65,7 +62,7 @@ namespace httpfsc.Business.Http
                 Directory.CreateDirectory(to.GetDirectoryName());
             }
 
-            File.WriteAllText(to, fileBytes.Content);
+            File.WriteAllText(to.GetFullPath(), fileBytes.Content);
         }
 
         #endregion

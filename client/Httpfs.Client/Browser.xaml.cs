@@ -5,7 +5,7 @@ using httpfsc.Business.Http;
 namespace Httpfs.Client
 {
     /// <summary>
-    /// Interaction logic for MainWindow
+    /// Main browser window
     /// </summary>
     public partial class Browser
     {
