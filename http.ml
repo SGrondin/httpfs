@@ -11,8 +11,6 @@ let get_filename req =
   let path = Uri.path (Request.uri req) in
   Sys.getcwd () ^ path
 
-let unimplemented body = Server.respond_string ~status:`Method_not_allowed ~body ()
-
 let critical_error e =
   let body = Exn.to_string_mach e in
   print_endline body;
@@ -109,7 +107,13 @@ let put ips req body =
   | e -> critical_error e
 
 let delete ips req body =
-  unimplemented "DELETE"
+  let filename = get_filename req in
+  try_lwt (
+    Lwt_unix.unlink filename >>= Server.respond_string ~status:`OK ~body:""
+  ) with
+  | Unix.Unix_error (Unix.ENOENT, _, _) ->
+    forward_to_others ips `DELETE req body >>= only_one_response
+  | e -> critical_error e
 
 let callback ips _ req body =
   try_lwt (
@@ -119,7 +123,7 @@ let callback ips _ req body =
     | `POST -> Lwt.pick [post ips req body; Lwt_unix.timeout lock_timeout >>= fun () -> critical_error (Failure "Timeout while acquiring lock")]
     | `PUT -> put ips req body
     | `DELETE -> delete ips req body
-    | meth -> unimplemented ("Method unimplemented: " ^ Cohttp.Code.string_of_method meth)
+    | meth -> Server.respond_string ~status:`Method_not_allowed ~body:("Method unimplemented: " ^ Cohttp.Code.string_of_method meth) ()
   ) with
   | e -> critical_error e
 
