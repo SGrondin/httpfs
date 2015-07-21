@@ -33,8 +33,7 @@ namespace httpfsc.Business.Http
 
         public async Task<ListDirectoryResult> ListDirectory(Url path)
         {
-            var requestPath = this.Config.ServerRootPath.Combine(path);
-            var request = new RestRequest(requestPath, Method.GET);
+            var request = new RestRequest(path, Method.GET);
 
             var files = await this.Client.ExecuteGetTaskAsync(request);
 
@@ -52,14 +51,18 @@ namespace httpfsc.Business.Http
 
         public async void DownloadFile(Url path, Url to)
         {
-            var requestPath = this.Config.ServerRootPath.Combine(path);
-            var request = new RestRequest(requestPath, Method.GET);
+            var request = new RestRequest(path, Method.GET);
 
             var fileBytes = await this.Client.ExecuteGetTaskAsync(request);
 
-            if (fileBytes.Headers.Contains(new Parameter { Name = "IS-DIRECTORY" }))
+            if (fileBytes.Headers.Any(h => h.Name == "is-directory"))
             {
                 throw new Exception();
+            }
+
+            if (!Directory.Exists(to.GetDirectoryName()))
+            {
+                Directory.CreateDirectory(to.GetDirectoryName());
             }
 
             File.WriteAllText(to, fileBytes.Content);

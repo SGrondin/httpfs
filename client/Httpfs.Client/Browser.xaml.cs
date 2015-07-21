@@ -5,7 +5,7 @@ using httpfsc.Business.Http;
 namespace Httpfs.Client
 {
     /// <summary>
-    ///     Interaction logic for MainWindow
+    /// Interaction logic for MainWindow
     /// </summary>
     public partial class Browser
     {
@@ -25,7 +25,7 @@ namespace Httpfs.Client
             this.CurrentPath = "/";
 
             this.FolderListView.MouseDoubleClick +=
-                (sender, args) => this.RefreshList(this.FolderListView.SelectedItem.ToString());
+                (sender, args) => this.RefreshList(this.CurrentPath.Combine(this.FolderListView.SelectedItem.ToString()));
 
             this.CurrentFolderListView.MouseDoubleClick +=
                 (sender, args) => this.DownloadSelectedFile();
@@ -67,8 +67,10 @@ namespace Httpfs.Client
             }
 
             var absoluteSelectedPath = this.CurrentPath.Combine(selectedFile);
-
-            var downloadToUrl = this._config.LocalRoot.Combine(absoluteSelectedPath);
+            
+            var downloadToUrl = this._config.LocalRoot
+                .Combine(this.CurrentPath)
+                .Combine(selectedFile);
 
             this._proxy.DownloadFile(absoluteSelectedPath, downloadToUrl);
         }
