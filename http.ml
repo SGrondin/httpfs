@@ -29,6 +29,7 @@ let forward_to_others ips meth (req, body) =
   | None -> Some (
     Lwt_list.map_p (fun remote ->
       let uri = Request.uri req
+      |> Fn.flip Uri.with_scheme (Uri.scheme remote)
       |> Fn.flip Uri.with_host (Uri.host remote)
       |> Fn.flip Uri.with_port (Uri.port remote)
       in
@@ -59,40 +60,40 @@ let get ips (req, body) =
     |> Lwt_stream.to_list
   in
   let fname = get_filename req in
-  Lwt_unix.stat fname
-  >>= fun stats ->
-    match Lwt_unix.(stats.st_kind) with
-    | Unix.S_DIR ->
-      Option.value ~default:(return []) (forward_to_others ips `GET (req, body))
-      >>= fun contents ->
-        if List.for_all ~f:((=) `OK <*> Response.status <*> fst) contents then
-          (get_directory_content fname
-          >>= (fun local_content ->
-              contents
-              |> Lwt_list.map_p (Cohttp_lwt_body.to_string <*> snd)
-              >|= (List.join <*> List.map ~f:String.split_lines)
-              >|= List.append local_content
-              >|= List.dedup ~compare:String.compare
-              >|= List.fold ~init:"" ~f:(fun acc -> fun file -> file ^ "\n" ^ acc))
-          >>= fun body -> Server.respond_string
-            ~headers:(Cohttp.Header.init_with "is-directory" "true")
-            ~status:`OK
-            ~body
-            ())
-        else
-          let contents' =
-            List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst) contents
-          in
-          critical_error (Failure (List.to_string ~f:Fn.id contents'))
-    | _ -> Server.respond_file ~fname ()
-  >>= (function (r, _) as resp ->
-    match Response.status r with
-    | `Not_found ->
+  try_lwt (
+    Lwt_unix.stat fname
+    >>= fun stats ->
+      match Lwt_unix.(stats.st_kind) with
+      | Unix.S_DIR ->
+        Option.value ~default:(return []) (forward_to_others ips `GET (req, body))
+        >>= fun contents ->
+          if List.for_all ~f:((List.mem [`OK; `Not_found]) <*> Response.status <*> fst) contents then
+            (get_directory_content fname
+            >>= (fun local_content ->
+                Lwt_list.map_p (Cohttp_lwt_body.to_string <*> snd) contents
+                >|= (List.join <*> List.map ~f:String.split_lines)
+                >|= List.append local_content
+                >|= List.dedup ~compare:String.compare
+                >|= List.fold ~init:"" ~f:(fun acc -> fun file -> file ^ "\n" ^ acc))
+            >>= fun body -> Server.respond_string
+              ~headers:(Cohttp.Header.init_with "is-directory" "true")
+              ~status:`OK
+              ~body
+              ())
+          else
+            let contents' =
+              List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst) contents
+            in
+            critical_error (Failure (List.to_string ~f:Fn.id contents'))
+      | Unix.S_REG | Unix.S_LNK -> Server.respond_file ~fname ()
+      | _ -> critical_error (Failure "Unsupported file kind")
+  ) with
+  | Unix.Unix_error (Unix.ENOENT, _, _) ->
       Option.value_map
         ~default:(not_found ())
         ~f:(Fn.flip Lwt.bind only_one_response)
         (forward_to_others ips `GET (req, body))
-    | _ -> return resp)
+  | e -> critical_error e
 
 let lock ips (req, body) =
   let fname = get_filename req in
@@ -150,9 +151,12 @@ let delete ips (req, body) =
       (forward_to_others ips `DELETE (req, body))
   | e -> critical_error e
 
-let callback _ ips http_request =
-  ignore (List.map ~f:Uri.to_string ips |> String.concat ~sep:"  " |> print_endline);
+let callback _ ips ((req, _) as http_request) =
   try_lwt (
+    ignore (Lwt_io.printf "%s %s\n%s"
+      (Cohttp.Code.string_of_method (Request.meth req))
+      (Uri.to_string (Request.uri req))
+      (Cohttp.Header.to_string (Request.headers req)));
     match Request.meth (fst http_request) with
     | `GET -> get ips http_request
     | `Other "LOCK" -> lock ips http_request
