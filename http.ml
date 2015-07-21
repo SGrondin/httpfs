@@ -62,13 +62,6 @@ let get_directory_content path =
   |> Lwt_stream.map_s (add_trailing_slash_if_directory path)
   |> Lwt_stream.to_list
 
-let list_directory_content path =
-  Lwt_unix.files_of_directory path
-  |> Lwt_stream.map_s (add_trailing_slash_if_directory path)
-  |> Fn.flip (Lwt_stream.fold (fun file -> fun acc -> file ^ "\n" ^ acc)) ""
-  >>= fun body ->
-    Server.respond_string ~headers:(Cohttp.Header.init_with "is-directory" "true") ~status:`OK ~body ()
-
 let get ips (req, body) =
   let is_resp_ok (resp, _) = Response.status resp = `OK in
   let fname = get_filename req in
@@ -76,36 +69,35 @@ let get ips (req, body) =
   >>= fun stats ->
     match Lwt_unix.(stats.st_kind) with
     | Unix.S_DIR ->
-      (*let _ = *)forward_to_others ips `GET req body
-        >>= fun contents ->
-          if List.for_all ~f:is_resp_ok contents then
-            (get_directory_content fname
-            >>= (fun local_content ->
-                contents
-                |> Lwt_list.map_p (Cohttp_lwt_body.to_string <*> snd)
-                >|= (List.join <*> List.map ~f:String.split_lines)
-                >|= List.append local_content
-                >|= List.dedup ~compare:String.compare
-                >|= List.fold ~init:"" ~f:(fun acc -> fun file -> file ^ "\n" ^ acc))
-            >>= fun body -> Server.respond_string
-              ~headers:(Cohttp.Header.init_with "is-directory" "true")
-              ~status:`OK
-              ~body
-              ())
-          else
-            let contents' =
-              List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst)
-                contents
-            in
-            critical_error (Failure (List.to_string ~f:Fn.id contents'))
-            (*
-      in
-      list_directory_content fname
-      *)
+      Option.value ~default:(return []) (forward_to_others' ips `GET (req, body))
+      >>= fun contents ->
+        if List.for_all ~f:is_resp_ok contents then
+          (get_directory_content fname
+          >>= (fun local_content ->
+              contents
+              |> Lwt_list.map_p (Cohttp_lwt_body.to_string <*> snd)
+              >|= (List.join <*> List.map ~f:String.split_lines)
+              >|= List.append local_content
+              >|= List.dedup ~compare:String.compare
+              >|= List.fold ~init:"" ~f:(fun acc -> fun file -> file ^ "\n" ^ acc))
+          >>= fun body -> Server.respond_string
+            ~headers:(Cohttp.Header.init_with "is-directory" "true")
+            ~status:`OK
+            ~body
+            ())
+        else
+          let contents' =
+            List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst) contents
+          in
+          critical_error (Failure (List.to_string ~f:Fn.id contents'))
     | _ -> Server.respond_file ~fname ()
   >>= (function (r, _) as resp ->
     match Response.status r with
-    | `Not_found -> forward_to_others ips `GET req body >>= only_one_response
+    | `Not_found ->
+      Option.value_map
+        ~default:(not_found ())
+        ~f:(Fn.flip Lwt.bind only_one_response)
+        (forward_to_others' ips `GET (req, body))
     | _ -> return resp)
 
 let lock ips (req, body) =
@@ -149,7 +141,7 @@ let put ips (req, body) =
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
     Option.value_map
       ~default:(not_found ())
-      ~f:(fun task -> task >>= only_one_response)
+      ~f:(Fn.flip Lwt.bind only_one_response)
       (forward_to_others' ips `PUT (req, body))
   | e -> critical_error e
 
