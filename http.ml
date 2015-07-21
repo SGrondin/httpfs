@@ -102,7 +102,7 @@ let post ips req body =
       | `Conflict | `Not_found -> conflict ()
       | _ -> critical_error (Failure (Response.sexp_of_t response |> Sexp.to_string))
 
-let put req body =
+let put ips req body =
   let filename = get_filename req in
   let flags = [Unix.O_WRONLY; Unix.O_TRUNC] in
   let mode = Lwt_io.output in
@@ -111,7 +111,7 @@ let put req body =
     >>= Server.respond_string ~status:`OK ~body:""
   ) with
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
-    unimplemented "PUT Forward\n"
+    forward_to_others ips `PUT req body >>= only_one_response
   | e -> critical_error e
 
 let delete ips req body =
@@ -123,7 +123,7 @@ let callback ips _ req body =
     | `GET -> get ips req body
     | `Other "LOCK" -> lock ips req body
     | `POST -> Lwt.pick [post ips req body; Lwt_unix.timeout lock_timeout >>= fun () -> critical_error (Failure "Timeout while acquiring lock")]
-    | `PUT -> put req body
+    | `PUT -> put ips req body
     | `DELETE -> delete ips req body
     | meth -> unimplemented ("Method unimplemented: " ^ Cohttp.Code.string_of_method meth)
   ) with
