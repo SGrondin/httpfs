@@ -46,6 +46,11 @@ let add_trailing_slash_if_directory root filename =
     | Unix.S_DIR -> filename ^ "/"
     | _ -> filename)
 
+let get_directory_content path =
+  Lwt_unix.files_of_directory path
+  |> Lwt_stream.map_s (add_trailing_slash_if_directory path)
+  |> Lwt_stream.to_list
+
 let list_directory_content path =
   Lwt_unix.files_of_directory path
   |> Lwt_stream.map_s (add_trailing_slash_if_directory path)
@@ -54,11 +59,38 @@ let list_directory_content path =
     Server.respond_string ~headers:(Cohttp.Header.init_with "is-directory" "true") ~status:`OK ~body ()
 
 let get ips req body =
+  let is_resp_ok (resp, _) = Response.status resp = `OK in
   let fname = get_filename req in
   Lwt_unix.stat fname
   >>= fun stats ->
     match Lwt_unix.(stats.st_kind) with
-    | Unix.S_DIR -> list_directory_content fname
+    | Unix.S_DIR ->
+      (*let _ = *)forward_to_others ips `GET req body
+        >>= fun contents ->
+          if List.for_all ~f:is_resp_ok contents then
+            (get_directory_content fname
+            >>= (fun local_content ->
+                contents
+                |> Lwt_list.map_p (Cohttp_lwt_body.to_string <*> snd)
+                >|= (List.join <*> List.map ~f:String.split_lines)
+                >|= List.append local_content
+                >|= List.dedup ~compare:String.compare
+                >|= List.fold ~init:"" ~f:(fun acc -> fun file -> file ^ "\n" ^ acc))
+            >>= fun body -> Server.respond_string
+              ~headers:(Cohttp.Header.init_with "is-directory" "true")
+              ~status:`OK
+              ~body
+              ())
+          else
+            let contents' =
+              List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst)
+                contents
+            in
+            critical_error (Failure (List.to_string ~f:Fn.id contents'))
+            (*
+      in
+      list_directory_content fname
+      *)
     | _ -> Server.respond_file ~fname ()
   >>= (function (r, _) as resp ->
     match Response.status r with
