@@ -7,7 +7,7 @@ clean:
 	@rm -f *.cmx
 	@rm -rf _build
 
-build: clean
+build: clean stop
 	corebuild -pkg unix,lwt,lwt.syntax,lwt.unix,cohttp.lwt main.native
 	@cp _build/main.native httpfs
 	@unlink main.native
@@ -27,7 +27,7 @@ sandbox:
 	mkdir sandbox/dir2
 	mkdir sandbox/dir2/dir3
 
-run:
+run: stop
 	./httpfs -p 2020 127.0.0.1:2021 &
 	./httpfs -p 2021 127.0.0.1:2020 &
 
