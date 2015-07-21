@@ -41,20 +41,19 @@ let only_one_response ls =
     let xs' = List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst) xs in
     critical_error (Failure (List.to_string ~f:Fn.id xs'))
 
-let add_trailing_slash_if_directory root filename =
-  Lwt_unix.stat (root ^ "/" ^ filename)
-  >|= (fun stats ->
-    match stats.Lwt_unix.st_kind with
-    | Unix.S_DIR -> filename ^ "/"
-    | _ -> filename)
-
-let get_directory_content path =
-  Lwt_unix.files_of_directory path
-  |> Lwt_stream.map_s (add_trailing_slash_if_directory path)
-  |> Lwt_stream.to_list
-
 let get ips (req, body) =
-  let is_resp_ok (resp, _) = Response.status resp = `OK in
+  let add_trailing_slash_if_directory root filename =
+    Lwt_unix.stat (root ^ "/" ^ filename)
+    >|= (fun stats ->
+      match stats.Lwt_unix.st_kind with
+      | Unix.S_DIR -> filename ^ "/"
+      | _ -> filename)
+  in
+  let get_directory_content path =
+    Lwt_unix.files_of_directory path
+    |> Lwt_stream.map_s (add_trailing_slash_if_directory path)
+    |> Lwt_stream.to_list
+  in
   let fname = get_filename req in
   Lwt_unix.stat fname
   >>= fun stats ->
@@ -62,7 +61,7 @@ let get ips (req, body) =
     | Unix.S_DIR ->
       Option.value ~default:(return []) (forward_to_others ips `GET (req, body))
       >>= fun contents ->
-        if List.for_all ~f:is_resp_ok contents then
+        if List.for_all ~f:((=) `OK <*> Response.status <*> fst) contents then
           (get_directory_content fname
           >>= (fun local_content ->
               contents
@@ -105,7 +104,6 @@ let lock ips (req, body) =
 
 let post ips (req, body) =
   let fname = get_filename req in
-  let is_resp_ok (resp, _) = Response.status resp = `OK in
   match Hashtbl.find locked fname with
   | Some el -> conflict ()
   | None ->
@@ -113,13 +111,12 @@ let post ips (req, body) =
     | None -> critical_error (Failure "Impossible case, LOCK cannot be forwarded")
     | Some x ->
       x >>= fun responses ->
-        if List.for_all ~f:is_resp_ok responses then
+        if List.for_all ~f:((=) `OK <*> Response.status <*> fst) responses then
           (try_lwt (
             Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
               Lwt_io.write ch "" >>= ok
             )
           ) with e -> critical_error e)
-        (* Not_found is returned by only_one_response when no hosts said OK *)
         else conflict ()
 
 let put ips (req, body) =
@@ -159,8 +156,7 @@ let callback _ ips http_request =
     | `PUT -> put ips http_request
     | `DELETE -> delete ips http_request
     | meth -> Server.respond_string ~status:`Method_not_allowed ~body:("Method unimplemented: " ^ Cohttp.Code.string_of_method meth) ()
-  ) with
-  | e -> critical_error e
+  ) with e -> critical_error e
 
 let make_server port ips () =
   let ctx = Cohttp_lwt_unix_net.init () in
