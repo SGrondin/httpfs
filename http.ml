@@ -2,6 +2,8 @@ open Core.Std
 open Lwt
 open Cohttp_lwt_unix
 
+let default_port = 2020
+
 let (<*>) f g x = f (g x)
 
 let locked = Hashtbl.create ~hashable:String.hashable ()
@@ -26,12 +28,8 @@ let forward_to_others ips meth req body =
   | Some _ ->
     Lwt.map (Fn.flip List.cons []) (Server.respond_string ~status:`Bad_request ~body:"" ())
   | None ->
-    Lwt_list.map_p (fun ip ->
+    Lwt_list.map_p (fun uri ->
       let headers = Cohttp.Header.init_with "forwarded" "true" in
-      let uri = Request.uri req
-      |> Fn.flip Uri.with_scheme (Some "http")
-      |> Fn.flip Uri.with_host (Some ip)
-      in
       Client.call ~headers ~body ~chunked:false meth uri
     ) ips
     >|= List.filter ~f:(function (resp, _) -> Response.status resp = `OK)
@@ -129,8 +127,17 @@ let callback ips _ req body =
   ) with
   | e -> critical_error e
 
-let make_server ips () =
+let format_ips raw =
+  List.map ~f:(fun str ->
+    String.split ~on:':' str
+    |> function
+    | host :: port :: [] -> Uri.make ~scheme:"http" ~host ~port:(Int.of_string port) ()
+    | host :: [] -> Uri.make ~scheme:"http" ~host ~port:default_port ()
+    | _ as arg -> failwith ("The command-line argument is not a valid IP: " ^ (String.concat ~sep:" " arg))
+  ) raw
+
+let make_server port ips () =
   let ctx = Cohttp_lwt_unix_net.init () in
-  let mode = `TCP (`Port 2020) in
-  let config_tcp = Server.make ~callback:(callback ips) () in
+  let mode = `TCP (`Port port) in
+  let config_tcp = Server.make ~callback:(callback (format_ips ips)) () in
   Server.create ~ctx ~mode config_tcp

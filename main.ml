@@ -13,9 +13,10 @@ let command =
     Command.Spec.(
       empty
       +> anon (sequence ("cluster IPs" %: string))
-    ) (fun ips () ->
+      +> flag "-p" (optional int) ~doc:"port number"
+    ) (fun ips port () ->
       Lwt_unix.run (
-          Http.make_server ips ()
+          Http.make_server (Option.value ~default:Http.default_port port) ips ()
       )
     )
 
