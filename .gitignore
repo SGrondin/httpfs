@@ -6,4 +6,7 @@ _build/
 server
 httpfs
 *.dummy
-sandbox/
+sandbox1/
+sandbox2/
+out1.txt
+out2.txt
