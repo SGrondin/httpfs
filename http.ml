@@ -2,7 +2,6 @@ open Core.Std
 open Lwt
 open Cohttp_lwt_unix
 
-let default_port = 2020
 let (<*>) f g x = f (g x)
 let locked = Hashtbl.create ~hashable:String.hashable ()
 let lock_timeout = 1.5
@@ -176,17 +175,8 @@ let callback ips _ req body =
   ) with
   | e -> critical_error e
 
-let format_ips raw =
-  List.map ~f:(fun str ->
-    String.split ~on:':' str
-    |> function
-    | host :: port :: [] -> Uri.make ~scheme:"http" ~host ~port:(Int.of_string port) ()
-    | host :: [] -> Uri.make ~scheme:"http" ~host ~port:default_port ()
-    | _ -> failwith ("The command-line argument is not a valid IP: " ^ str)
-  ) raw
-
 let make_server port ips () =
   let ctx = Cohttp_lwt_unix_net.init () in
   let mode = `TCP (`Port port) in
-  let config_tcp = Server.make ~callback:(callback (format_ips ips)) () in
+  let config_tcp = Server.make ~callback:(callback ips) () in
   Server.create ~ctx ~mode config_tcp
