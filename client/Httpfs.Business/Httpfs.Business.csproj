@@ -51,7 +51,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="FileSystem\Http\HttpFileSystemProxy.cs" />
-    <Compile Include="FileSystem\Results\List\FolderListResult.cs" />
+    <Compile Include="FileSystem\Http\IHttpFileSystemProxyConfig.cs" />
+    <Compile Include="FileSystem\Results\List\ListDirectoryResult.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
