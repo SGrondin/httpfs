@@ -118,22 +118,21 @@ let lock ips req body =
 
 let post ips req body =
   let fname = get_filename req in
+  let is_resp_ok (resp, _) = Response.status resp = `OK in
   match Hashtbl.find locked fname with
   | Some el -> conflict ()
   | None ->
     forward_to_others ips (`Other "LOCK") (Request.make ~meth:(`Other "LOCK") (Request.uri req)) body
     >>= fun responses ->
-      match List.dedup (List.map ~f:(Response.status <*> fst) responses) with
-      | [`OK] | [] ->
+      if List.for_all ~f:is_resp_ok responses then
         (try_lwt (
           Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
             Lwt_io.write ch ""
             >>= fun () -> Server.respond_string ~status:`OK ~body:"" ()
           )
-        ) with
-        | e -> critical_error e)
+        ) with e -> critical_error e)
       (* Not_found is returned by only_one_response when no hosts said OK *)
-      | _ -> conflict ()
+      else conflict ()
 
 let put ips req body =
   let filename = get_filename req in
