@@ -17,16 +17,26 @@ let critical_error e =
   Server.respond_string ~status:`Internal_server_error ~body ()
 
 let conflict () = Server.respond_string ~status:`Conflict ~body:"" ()
+let not_found () = Server.respond_string ~status:`Not_found ~body:"" ()
 
 let forward_to_others ips meth req body =
+match Cohttp.Header.get (Request.headers req) "forwarded" with
+| Some _ ->
+Lwt.map (Fn.flip List.cons []) (Server.respond_string ~status:`Bad_request ~body:"" ())
+| None ->
+Lwt_list.map_p (fun uri ->
+let headers = Cohttp.Header.init_with "forwarded" "true" in
+Client.call ~headers ~body ~chunked:false meth uri
+) ips
+
+let forward_to_others' ips meth req body =
   match Cohttp.Header.get (Request.headers req) "forwarded" with
-  | Some _ ->
-    Lwt.map (Fn.flip List.cons []) (Server.respond_string ~status:`Bad_request ~body:"" ())
-  | None ->
+  | Some _ -> None
+  | None -> Some (
     Lwt_list.map_p (fun uri ->
       let headers = Cohttp.Header.init_with "forwarded" "true" in
       Client.call ~headers ~body ~chunked:false meth uri
-    ) ips
+    ) ips)
 
 let only_one_response ls =
   List.filter ~f:(function (resp, _) -> Response.status resp = `OK) ls
@@ -135,7 +145,10 @@ let put ips req body =
     >>= Server.respond_string ~status:`OK ~body:""
   ) with
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
-    forward_to_others ips `PUT req body >>= only_one_response
+    Option.value_map
+      ~default:(not_found ())
+      ~f:(fun task -> task >>= only_one_response)
+      (forward_to_others' ips `PUT req body)
   | e -> critical_error e
 
 let delete ips req body =
@@ -144,10 +157,14 @@ let delete ips req body =
     Lwt_unix.unlink filename >>= Server.respond_string ~status:`OK ~body:""
   ) with
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
-    forward_to_others ips `DELETE req body >>= only_one_response
+    Option.value_map
+      ~default:(not_found ())
+      ~f:(Fn.flip Lwt.bind only_one_response)
+      (forward_to_others' ips `DELETE req body)
   | e -> critical_error e
 
 let callback ips _ req body =
+  ignore (List.map ~f:Uri.to_string ips |> String.concat ~sep:"  " |> print_endline);
   try_lwt (
     match Request.meth req with
     | `GET -> get ips req body
