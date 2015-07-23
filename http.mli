@@ -17,6 +17,7 @@ None is return. *)
 val forward_to_others :
   servers -> Code.meth -> http_request -> http_response list Lwt.t option
 
+(* Ensure that only one server respond correctly to the forwarded request. *)
 val only_one_response : http_response list -> http_response Lwt.t
 
 (* Delete the file at the specified path. If the HTTP request contains the
