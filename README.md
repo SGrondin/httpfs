@@ -1,20 +1,48 @@
-Git-fs
+HTTPFS
 ======
 
-Distributed filesystem ala FTP using Git as a backend.
+HTTPS provides a REST interface that exposes a distributed filesystem as if it were a single server.
 
-Discoverability: Give a single IP on startup and let it use Git to discover the other nodes.
+***The servers must be free of conflicts on startup.***
 
-Protocol beetween nodes: git
-Protocol between clients and nodes: http
+Starting a server:
 
-## Currently implemented
+```
+./httpfs [-p PORT] [list of remote servers]
+```
 
-Command line:
-`./server ls -la`
+The system will guarantee that files only exist on a single server.
 
-## Install
+### API reference
 
-`opam switch 4.02.1`
+#### GET
 
-`opam install core lwt cohttp`
+Read.
+
+On a file: returns the contents of the file.
+
+On a directory: returns the contents of the directory. The `is-directory` header will be `true`.
+
+#### PUT
+
+Write.
+
+On a file: overwrites the contents of the file.
+
+On a directory: error.
+
+#### POST
+
+Create.
+
+Without the `is-directory` header: creates an empty file.
+
+With the `is-directory` header: creates an empty directory.
+
+#### DELETE
+
+Delete.
+
+On a file: deletes the file.
+
+On a directory: deletes the directory. The directory must be empty. The `is-directory` header must be set.

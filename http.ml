@@ -102,9 +102,9 @@ let get ips (req, body) =
 
 let path_exists fname =
   try_lwt (
-    Lwt_unix.stat fname >|= fun _ -> Ok false
+    Lwt_unix.stat fname >|= fun _ -> Ok true
   ) with
-  | Unix.Unix_error (Unix.ENOENT, _, _) -> return (Ok true)
+  | Unix.Unix_error (Unix.ENOENT, _, _) -> return (Ok false)
   | e -> return (Error e)
 
 let lock ips (req, body) =
@@ -119,6 +119,7 @@ let lock ips (req, body) =
 
 let post ips (req, body) =
   let fname = get_filename req in
+  let is_dir = Option.is_some (Cohttp.Header.get (Request.headers req) "is-directory") in
   match Hashtbl.find locked fname with
   | Some el -> conflict ()
   | None ->
@@ -126,8 +127,8 @@ let post ips (req, body) =
     | Ok true -> conflict ()
     | Error e -> critical_error e
     | Ok false ->
-      let headers = Option.value_map ~default:(Cohttp.Header.init ())
-        ~f:(fun _ -> Cohttp.Header.init_with "is-directory" "true") (Cohttp.Header.get (Request.headers req) "is-directory") in
+      let headers = if is_dir then Cohttp.Header.init_with "is-directory" "true"
+        else Cohttp.Header.init () in
       let lock_request = ((Request.make ~meth:(`Other "LOCK") ~headers (Request.uri req)), body) in
       match forward_to_others ips (`Other "LOCK") lock_request with
       | None -> critical_error (Failure "Impossible case, LOCK cannot be forwarded")
@@ -135,9 +136,12 @@ let post ips (req, body) =
         x >>= fun responses ->
           if List.for_all ~f:((=) `OK <*> Response.status <*> fst) responses then
             (try_lwt (
-              Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
-                Lwt_io.write ch "" >>= ok
-              )
+              if is_dir then
+                Lwt_unix.mkdir fname 493 >>= ok (* octal 755 = decimal 493 *)
+              else
+                Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
+                  Lwt_io.write ch "" >>= ok
+                )
             ) with e -> critical_error e)
           else conflict ()
 
