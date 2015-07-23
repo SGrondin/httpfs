@@ -2,14 +2,17 @@ open Cohttp
 open Cohttp_lwt_unix
 open Core.Std
 
-type http_response = Response.t * Cohttp_lwt_body.t
 type http_request = Request.t * Cohttp_lwt_body.t
+type http_response = Response.t * Cohttp_lwt_body.t
 
 (* Set of the other servers part of this distributed fs. *)
 type servers = Uri.t list
 
 (* Standard request handler that respond to an HTTP request. *)
 type request_handler = servers -> http_request -> http_response Lwt.t
+
+(* The default port to listen on HTTP if one isn't provided on the command-line *)
+val default_port : int
 
 (* Forward some HTTP request to all the other servers of the distributed fs and
 collect the responses. If the request was already forwarded to us by a server,
@@ -19,6 +22,11 @@ val forward_to_others :
 
 (* Ensure that only one server respond correctly to the forwarded request. *)
 val only_one_response : http_response list -> http_response Lwt.t
+
+(* Converts a list of strings into a list of valid Uris representing
+the known remote servers. Throws a fatal exception on badly formatted Uris. *)
+val format_ips:
+  string list -> Uri.t list
 
 (* Delete the file at the specified path. If the HTTP request contains the
 'is-directory' header, then the file must be an empty directory. *)
@@ -46,8 +54,12 @@ val lock : request_handler
 (* Return the list of known remote servers. *)
 val discover : request_handler
 
+val hello : Conduit_lwt_unix.flow -> request_handler
+
 (* Callback used by the server to handle the HTTP requests. *)
-val callback : 'a -> request_handler
+val callback : Conduit_lwt_unix.flow * 'a -> request_handler
+
+val discovery_startup: string -> Uri.t list Lwt.t
 
 (* Create a server that will listen to the http request, try to handle them and
 forward them to the other servers of the distributed fs. *)

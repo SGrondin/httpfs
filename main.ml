@@ -7,17 +7,6 @@ open Lwt
 (* Replace the default uncaught exception hook with one that doesn't quit *)
 let () = Lwt.async_exception_hook := fun ex -> print_endline (Exn.to_string ex)
 
-let default_port = 2020
-
-let format_ips =
-  List.map ~f:(fun str ->
-    String.split ~on:':' str
-    |> function
-    | host :: port :: [] -> Uri.make ~scheme:"http" ~host ~port:(Int.of_string port) ()
-    | host :: [] -> Uri.make ~scheme:"http" ~host ~port:default_port ()
-    | _ -> failwith ("The command-line argument is not a valid IP: " ^ str)
-  )
-
 let command =
   Command.basic
     ~summary:"Synchronized distributed Git filesystem"
@@ -25,10 +14,16 @@ let command =
       empty
       +> anon (sequence ("cluster IPs" %: string))
       +> flag "-p" (optional int) ~doc:"port number"
-    ) (fun ips port () ->
+      +> flag "-d" (optional string) ~doc:" join an existing cluster"
+    ) (fun ips_str port_opt discover () ->
       Lwt_unix.run (
-          Http.make_server ~port:(Option.value ~default:default_port port)
-          (format_ips ips) ()
+        let port = Option.value ~default:Http.default_port port_opt in
+        Option.value_map
+          ~default:(return (Http.format_ips ips_str))
+          ~f:Http.discovery_startup
+          discover
+        >>= fun ips ->
+          Http.make_server ~port ips ()
       )
     )
 

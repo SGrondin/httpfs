@@ -2,14 +2,17 @@ open Core.Std
 open Lwt
 open Cohttp_lwt_unix
 
-type http_response = Response.t * Cohttp_lwt_body.t
-type http_request = Request.t * Cohttp_lwt_body.t
+module Body = Cohttp_lwt_body
+type http_response = Response.t * Body.t
+type http_request = Request.t * Body.t
 type request_handler = Uri.t list -> http_request -> http_response Lwt.t
 type servers = Uri.t list
 
 let (<*>) f g x = f (g x)
+let default_port = 2020
 let locked = Hashtbl.create ~hashable:String.hashable ()
 let lock_timeout = 1.5
+let known_servers = ref []
 
 let get_filename req =
   let path = Uri.path (Request.uri req) in
@@ -75,7 +78,7 @@ let get ips (req, body) =
           if List.for_all ~f:((List.mem [`OK; `Not_found]) <*> Response.status <*> fst) contents then
             (get_directory_content fname
             >>= (fun local_content ->
-                Lwt_list.map_p (Cohttp_lwt_body.to_string <*> snd) contents
+                Lwt_list.map_p (Body.to_string <*> snd) contents
                 >|= (List.join <*> List.map ~f:String.split_lines)
                 >|= List.append local_content
                 >|= List.dedup ~compare:String.compare
@@ -150,7 +153,7 @@ let put ips (req, body) =
   let flags = [Unix.O_WRONLY; Unix.O_TRUNC] in
   let mode = Lwt_io.output in
   try_lwt (
-    Lwt_io.with_file ~flags ~mode filename (Fn.flip Cohttp_lwt_body.write_body body <*> Lwt_io.write)
+    Lwt_io.with_file ~flags ~mode filename (Fn.flip Body.write_body body <*> Lwt_io.write)
     >>= ok
   ) with
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
@@ -173,11 +176,34 @@ let delete ips (req, body) =
       (forward_to_others ips `DELETE (req, body))
   | e -> critical_error e
 
+let format_ips =
+  List.map ~f:(fun str ->
+    String.split ~on:':' str
+    |> function
+    | host :: port :: [] -> Uri.make ~scheme:"http" ~host ~port:(Int.of_string port) ()
+    | host :: [] -> Uri.make ~scheme:"http" ~host ~port:default_port ()
+    | _ -> failwith ("The command-line argument is not a valid IP: " ^ str)
+  )
+
+let get_addr_from_ch = function
+| Conduit_lwt_unix.TCP {Conduit_lwt_unix.fd; _} -> begin (* Also contains ip and port *)
+  match Lwt_unix.getpeername fd with
+  | Lwt_unix.ADDR_INET (ia, _port) -> Ipaddr.to_string (Ipaddr_unix.of_inet_addr ia)
+  | _ -> failwith "Not a TCP socket" end
+| _ -> "<error>"
+
 let discover ips (req, body) =
   let body = String.concat ~sep:"\n" (List.map ~f:Uri.to_string ips) in
   Server.respond_string ~status:`OK ~body ()
 
-let callback _ ips ((req, _) as http_request) =
+let hello ch ips (req, body) =
+  (format_ips [get_addr_from_ch ch]
+  |> List.append !known_servers
+  |> fun servers -> known_servers := servers);
+  ok ()
+
+let callback (ch, _) (_:servers) ((req, _) as http_request) =
+  let ips = !known_servers in
   try_lwt (
     ignore (Lwt_io.printf "%s %s\n%s"
       (Cohttp.Code.string_of_method (Request.meth req))
@@ -190,10 +216,26 @@ let callback _ ips ((req, _) as http_request) =
     | `PUT -> put ips http_request
     | `DELETE -> delete ips http_request
     | `Other "DISCOVER" -> discover ips http_request
+    | `Other "HELLO" -> hello ch ips http_request
     | meth -> Server.respond_string ~status:`Method_not_allowed ~body:("Method unimplemented: " ^ Cohttp.Code.string_of_method meth) ()
   ) with e -> critical_error e
 
+let discovery_startup ip_str =
+  let uri = List.hd_exn (format_ips [ip_str]) in
+  Client.call (`Other "DISCOVER") uri
+  >>= (Body.to_string <*> snd)
+  >|= String.split_lines
+  >|= format_ips
+  >>= fun ips ->
+    match forward_to_others ips (`Other "HELLO") ((Request.make ~meth:(`Other "HELLO") uri), (Body.of_string "")) with
+    | None -> failwith "Impossible case, HELLO cannot be forwarded"
+    | Some ls -> ls >>= only_one_response >|= fun (res, body) ->
+      match Response.status res with
+      | `OK -> ips
+      | _ -> failwith "Not all servers responded OK to the join request. Cluster inconsistent."
+
 let make_server ~port ips () =
+  known_servers := ips;
   let ctx = Cohttp_lwt_unix_net.init () in
   let mode = `TCP (`Port port) in
   let config_tcp =
