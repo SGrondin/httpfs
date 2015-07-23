@@ -46,6 +46,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Http\FileSystem\Exceptions\NotADirectoryException.cs" />
     <Compile Include="Http\HttpFileSystemProxy.cs" />
     <Compile Include="Http\IHttpFileSystemProxyConfig.cs" />
     <Compile Include="Http\FileSystem\Results\List\ListDirectoryResult.cs" />
