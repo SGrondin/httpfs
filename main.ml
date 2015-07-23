@@ -14,9 +14,16 @@ let command =
       empty
       +> anon (sequence ("cluster IPs" %: string))
       +> flag "-p" (optional int) ~doc:"port number"
-    ) (fun ips port () ->
+      +> flag "-d" (optional string) ~doc:" join an existing cluster"
+    ) (fun ips_str port_opt discover () ->
       Lwt_unix.run (
-          Http.make_server (Option.value ~default:Http.default_port port) ips ()
+        let port = Option.value ~default:Http.default_port port_opt in
+        Option.value_map
+          ~default:(return (Http.format_ips ips_str))
+          ~f:Http.discovery_startup
+          discover
+        >>= fun ips ->
+          Http.make_server ~port ips ()
       )
     )
 

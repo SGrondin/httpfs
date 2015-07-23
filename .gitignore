@@ -4,4 +4,10 @@ _build/
 *.cmo
 *.cmi
 server
+httpfs
 *.dummy
+sandbox1/
+sandbox2/
+out1.txt
+out2.txt
+*.log
