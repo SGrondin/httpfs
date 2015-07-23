@@ -27,7 +27,7 @@ let command =
       +> flag "-p" (optional int) ~doc:"port number"
     ) (fun ips port () ->
       Lwt_unix.run (
-          Http.make_server (Option.value ~default:default_port port)
+          Http.make_server ~port:(Option.value ~default:default_port port)
           (format_ips ips) ()
       )
     )

@@ -43,6 +43,9 @@ val put : request_handler
 the file is unique. *)
 val lock : request_handler
 
+(* Return the list of known remote servers. *)
+val discover : request_handler
+
 (* Callback used by the server to handle the HTTP requests. *)
 val callback : 'a -> request_handler
 

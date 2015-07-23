@@ -173,6 +173,10 @@ let delete ips (req, body) =
       (forward_to_others ips `DELETE (req, body))
   | e -> critical_error e
 
+let discover ips (req, body) =
+  let body = String.concat ~sep:"\n" (List.map ~f:Uri.to_string ips) in
+  Server.respond_string ~status:`OK ~body ()
+
 let callback _ ips ((req, _) as http_request) =
   try_lwt (
     ignore (Lwt_io.printf "%s %s\n%s"
@@ -185,6 +189,7 @@ let callback _ ips ((req, _) as http_request) =
     | `POST -> Lwt.pick [post ips http_request; Lwt_unix.timeout lock_timeout >>= fun () -> critical_error (Failure "Timeout while acquiring lock")]
     | `PUT -> put ips http_request
     | `DELETE -> delete ips http_request
+    | `Other "DISCOVER" -> discover ips http_request
     | meth -> Server.respond_string ~status:`Method_not_allowed ~body:("Method unimplemented: " ^ Cohttp.Code.string_of_method meth) ()
   ) with e -> critical_error e
 
