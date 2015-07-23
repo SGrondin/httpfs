@@ -4,18 +4,18 @@
         Title="HTTPFS Browser" Height="600" Width="900">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="50"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
             <RowDefinition></RowDefinition>
         </Grid.RowDefinitions>
         
         <Grid Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition></ColumnDefinition>
-                <ColumnDefinition></ColumnDefinition>
-            </Grid.ColumnDefinitions>
-            
-            <Button Grid.Column="0">New empty file</Button>
-            <Button Grid.Column="1">Upload file</Button>
+            <Menu>
+                <MenuItem Header="File">
+                    <MenuItem Header="Create new" Name="FileMenuCreate"></MenuItem>
+                    <MenuItem Header="Upload" Name="FileMenuUpload"></MenuItem>
+                    <MenuItem Header="Delete" Name="FileMenuDelete"></MenuItem>
+                </MenuItem>
+            </Menu>
         </Grid>
 
         <Grid Row="1">
