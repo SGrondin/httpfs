@@ -33,7 +33,11 @@ let forward_to_others ips meth (req, body) =
       |> Fn.flip Uri.with_host (Uri.host remote)
       |> Fn.flip Uri.with_port (Uri.port remote)
       in
-      let headers = Cohttp.Header.init_with "forwarded" "true" in
+      let original_headers = Request.headers req in
+      let headers = Cohttp.Header.init ()
+      |> fun h -> Option.value_map ~default:h ~f:(fun _ -> Cohttp.Header.add h "is-directory" "true") (Cohttp.Header.get original_headers "is-directory")
+      |> fun h -> Cohttp.Header.add h "forwarded" "true"
+      in
       Client.call ~headers ~body ~chunked:false meth uri
     ) ips)
 
@@ -95,36 +99,46 @@ let get ips (req, body) =
         (forward_to_others ips `GET (req, body))
   | e -> critical_error e
 
+let path_exists fname =
+  try_lwt (
+    Lwt_unix.stat fname >|= fun _ -> Ok false
+  ) with
+  | Unix.Unix_error (Unix.ENOENT, _, _) -> return (Ok true)
+  | e -> return (Error e)
+
 let lock ips (req, body) =
   let fname = get_filename req in
-  try_lwt (
-    Lwt_io.with_file ~flags:[Unix.O_RDONLY] ~mode:Lwt_io.input fname (fun _ -> conflict ())
-  ) with
-  | Unix.Unix_error (Unix.ENOENT, _, _) ->
-    (* The file doesn't exist, lock it and return OK *)
+  path_exists fname >>= function
+  | Ok true -> conflict ()
+  | Ok false ->
     Hashtbl.set locked fname true;
     ignore (Lwt_unix.timeout lock_timeout >|= fun () -> Hashtbl.remove locked fname);
     ok ()
-  | e -> critical_error e
+  | Error e -> critical_error e
 
 let post ips (req, body) =
-  (* CHECK IF THE FILE EXISTS LOCALLY *)
-  (* ADD IS-DIRECTORY FLAG *)
   let fname = get_filename req in
   match Hashtbl.find locked fname with
   | Some el -> conflict ()
   | None ->
-    match forward_to_others ips (`Other "LOCK") ((Request.make ~meth:(`Other "LOCK") (Request.uri req)), body) with
-    | None -> critical_error (Failure "Impossible case, LOCK cannot be forwarded")
-    | Some x ->
-      x >>= fun responses ->
-        if List.for_all ~f:((=) `OK <*> Response.status <*> fst) responses then
-          (try_lwt (
-            Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
-              Lwt_io.write ch "" >>= ok
-            )
-          ) with e -> critical_error e)
-        else conflict ()
+    path_exists fname >>= function
+    | Ok true -> conflict ()
+    | Error e -> critical_error e
+    | Ok false ->
+      let headers = Option.value_map ~default:(Cohttp.Header.init ())
+        ~f:(fun _ -> Cohttp.Header.init_with "is-directory" "true") (Cohttp.Header.get (Request.headers req) "is-directory") in
+      let lock_request = ((Request.make ~meth:(`Other "LOCK") ~headers (Request.uri req)), body) in
+      match forward_to_others ips (`Other "LOCK") lock_request with
+      | None -> critical_error (Failure "Impossible case, LOCK cannot be forwarded")
+      | Some x ->
+        x >>= fun responses ->
+          if List.for_all ~f:((=) `OK <*> Response.status <*> fst) responses then
+            (try_lwt (
+              Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
+                Lwt_io.write ch "" >>= ok
+              )
+            ) with e -> critical_error e)
+          else conflict ()
 
 let put ips (req, body) =
   let filename = get_filename req in
