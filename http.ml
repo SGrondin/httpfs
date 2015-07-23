@@ -108,6 +108,8 @@ let lock ips (req, body) =
   | e -> critical_error e
 
 let post ips (req, body) =
+  (* CHECK IF THE FILE EXISTS LOCALLY *)
+  (* ADD IS-DIRECTORY FLAG *)
   let fname = get_filename req in
   match Hashtbl.find locked fname with
   | Some el -> conflict ()
@@ -156,7 +158,7 @@ let callback _ ips ((req, _) as http_request) =
     ignore (Lwt_io.printf "%s %s\n%s"
       (Cohttp.Code.string_of_method (Request.meth req))
       (Uri.to_string (Request.uri req))
-      (Cohttp.Header.to_string (Request.headers req)));
+      (String.concat ~sep:"\n" (Cohttp.Header.to_lines (Request.headers req))));
     match Request.meth (fst http_request) with
     | `GET -> get ips http_request
     | `Other "LOCK" -> lock ips http_request
