@@ -20,7 +20,7 @@ let command =
         let port = Option.value ~default:Http.default_port port_opt in
         Option.value_map
           ~default:(return (Http.format_ips ips_str))
-          ~f:Http.discovery_startup
+          ~f:(Http.discovery_startup port)
           discover
         >>= fun ips ->
           Http.make_server ~port ips ()

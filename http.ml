@@ -180,6 +180,7 @@ let format_ips =
   List.map ~f:(fun str ->
     String.split ~on:':' str
     |> function
+    | "http" :: host :: port :: [] -> Uri.make ~scheme:"http" ~host:(String.strip ~drop:((=) '/') host) ~port:(Int.of_string port) ()
     | host :: port :: [] -> Uri.make ~scheme:"http" ~host ~port:(Int.of_string port) ()
     | host :: [] -> Uri.make ~scheme:"http" ~host ~port:default_port ()
     | _ -> failwith ("The command-line argument is not a valid IP: " ^ str)
@@ -197,10 +198,14 @@ let discover ips (req, body) =
   Server.respond_string ~status:`OK ~body ()
 
 let hello ch ips (req, body) =
-  (format_ips [get_addr_from_ch ch]
-  |> List.append !known_servers
-  |> fun servers -> known_servers := servers);
-  ok ()
+  [get_addr_from_ch ch] |> format_ips |> List.hd |> function
+  | None -> critical_error (Failure "Could not extract raw IP from the socket")
+  | Some remote_ip ->
+    Body.to_string body >>= fun port ->
+      let remote_uri = Uri.with_port remote_ip (Some (Int.of_string port)) in
+      known_servers := List.append (!known_servers) [remote_uri];
+      List.map ~f:Uri.to_string (!known_servers) |> String.concat ~sep:"---" |> print_endline;
+      ok ()
 
 let callback (ch, _) (_:servers) ((req, _) as http_request) =
   let ips = !known_servers in
@@ -220,19 +225,18 @@ let callback (ch, _) (_:servers) ((req, _) as http_request) =
     | meth -> Server.respond_string ~status:`Method_not_allowed ~body:("Method unimplemented: " ^ Cohttp.Code.string_of_method meth) ()
   ) with e -> critical_error e
 
-let discovery_startup ip_str =
+let discovery_startup port ip_str =
   let uri = List.hd_exn (format_ips [ip_str]) in
   Client.call (`Other "DISCOVER") uri
   >>= (Body.to_string <*> snd)
-  >|= String.split_lines
-  >|= format_ips
+  >|= (List.dedup <*> List.append [uri] <*> format_ips <*> String.split_lines)
   >>= fun ips ->
-    match forward_to_others ips (`Other "HELLO") ((Request.make ~meth:(`Other "HELLO") uri), (Body.of_string "")) with
+    print_endline (List.map ~f:Uri.to_string ips |> String.concat ~sep:", ");
+    match forward_to_others ips (`Other "HELLO") ((Request.make ~meth:(`Other "HELLO") uri), (Body.of_string (Int.to_string port))) with
     | None -> failwith "Impossible case, HELLO cannot be forwarded"
-    | Some ls -> ls >>= only_one_response >|= fun (res, body) ->
-      match Response.status res with
-      | `OK -> ips
-      | _ -> failwith "Not all servers responded OK to the join request. Cluster inconsistent."
+    | Some ls -> ls >|= fun responses ->
+      if List.for_all ~f:((=) `OK <*> Response.status <*> fst) responses then ips
+      else failwith "Not all servers responded OK to the join request. Cluster inconsistent."
 
 let make_server ~port ips () =
   known_servers := ips;

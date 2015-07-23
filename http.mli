@@ -54,12 +54,16 @@ val lock : request_handler
 (* Return the list of known remote servers. *)
 val discover : request_handler
 
+(* Tell a remote server that you exist *)
 val hello : Conduit_lwt_unix.flow -> request_handler
 
 (* Callback used by the server to handle the HTTP requests. *)
 val callback : Conduit_lwt_unix.flow * 'a -> request_handler
 
-val discovery_startup: string -> Uri.t list Lwt.t
+(* Starts the server in discovery mode. It'll atttempt to join the cluster by
+contacting the one known server, asking it its list of servers and then
+registering itself with all the cluster's servers. *)
+val discovery_startup: int -> string -> servers Lwt.t
 
 (* Create a server that will listen to the http request, try to handle them and
 forward them to the other servers of the distributed fs. *)

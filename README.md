@@ -1,7 +1,7 @@
 HTTPFS
 ======
 
-HTTPS provides a REST interface that exposes a distributed filesystem as if it were a single server.
+HTTPFS provides a REST interface that exposes a distributed filesystem as if it were a single server.
 
 ***The servers must be free of conflicts on startup.***
 
