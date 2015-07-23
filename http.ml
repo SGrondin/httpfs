@@ -145,7 +145,8 @@ let put ips (req, body) =
 let delete ips (req, body) =
   let filename = get_filename req in
   try_lwt (
-    Lwt_unix.unlink filename >>= ok
+    (Option.value_map (Cohttp.Header.get (Request.headers req) "is-directory")
+      ~default:Lwt_unix.unlink ~f:(fun _ -> Lwt_unix.rmdir)) filename >>= ok
   ) with
   | Unix.Unix_error (Unix.ENOENT, _, _) ->
     Option.value_map
