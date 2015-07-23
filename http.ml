@@ -5,6 +5,7 @@ open Cohttp_lwt_unix
 type http_response = Response.t * Cohttp_lwt_body.t
 type http_request = Request.t * Cohttp_lwt_body.t
 type request_handler = Uri.t list -> http_request -> http_response Lwt.t
+type servers = Uri.t list
 
 let (<*>) f g x = f (g x)
 let locked = Hashtbl.create ~hashable:String.hashable ()
@@ -168,7 +169,7 @@ let callback _ ips ((req, _) as http_request) =
     | meth -> Server.respond_string ~status:`Method_not_allowed ~body:("Method unimplemented: " ^ Cohttp.Code.string_of_method meth) ()
   ) with e -> critical_error e
 
-let make_server port ips () =
+let make_server ~port ips () =
   let ctx = Cohttp_lwt_unix_net.init () in
   let mode = `TCP (`Port port) in
   let config_tcp =
