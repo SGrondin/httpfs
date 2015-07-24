@@ -27,4 +27,4 @@ let command =
       )
     )
 
-let () = Command.run ~version:"0.0.1" ~build_info:"github.com/SGrondin/git-fs" command
+let () = Command.run ~version:"1.0.0" ~build_info:"github.com/SGrondin/git-fs" command

@@ -10,7 +10,7 @@ The system will then guarantee that files only exist on a single server.
 Starting a server:
 
 ```
-./httpfs [-p PORT] [[list of remote servers] | [-d REMOTE_SERVER]
+./httpfs [-p PORT] [[list of remote servers] | [-d REMOTE_SERVER]]
 ```
 
 ###### Arguments

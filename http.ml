@@ -215,8 +215,7 @@ let bye ch ips (req, body) =
     let string_remote = Uri.to_string remote_uri in
     known_servers := (List.filter_map
       ~f:(fun uri -> if (Uri.to_string uri) <> string_remote then (Some uri) else None)
-      (!known_servers)
-    );
+      (!known_servers));
     ok ()
 
 let disconnect port ips (req, body) =
