@@ -57,12 +57,19 @@ val discover : request_handler
 (* Tell a remote server that you exist *)
 val hello : Conduit_lwt_unix.flow -> request_handler
 
+(* Tell a remote server that we're leaving the cluster*)
+val bye : Conduit_lwt_unix.flow -> request_handler
+
+(* Make a server leave the cluster *)
+val disconnect : int -> request_handler
+
 (* Callback used by the server to handle the HTTP requests. *)
-val callback : Conduit_lwt_unix.flow * 'a -> request_handler
+val callback : port:int -> Conduit_lwt_unix.flow * 'a -> request_handler
 
 (* Starts the server in discovery mode. It'll atttempt to join the cluster by
 contacting the one known server, asking it its list of servers and then
-registering itself with all the cluster's servers. *)
+registering itself with all the cluster's servers. If it fails to join,
+it'll attempt to disconnect cleanly. *)
 val discovery_startup: int -> string -> servers Lwt.t
 
 (* Create a server that will listen to the http request, try to handle them and

@@ -9,7 +9,7 @@ clean:
 	@rm -f out*.txt
 
 build: clean stop
-	corebuild -pkg unix,lwt,lwt.syntax,lwt.unix,cohttp.lwt main.native
+	corebuild -pkg unix,lwt,lwt.syntax,lwt.unix,lwt.preemptive,cohttp.lwt main.native
 	@cp _build/main.native httpfs
 	@unlink main.native
 

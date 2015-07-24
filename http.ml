@@ -20,7 +20,7 @@ let get_filename req =
 
 let critical_error e =
   let body = Exn.to_string_mach e in
-  print_endline body;
+  ignore (Lwt_io.printl body);
   Server.respond_string ~status:`Internal_server_error ~body ()
 
 let conflict = Server.respond_string ~status:`Conflict ~body:""
@@ -132,7 +132,7 @@ let post ips (req, body) =
     | Ok false ->
       let headers = if is_dir then Cohttp.Header.init_with "is-directory" "true"
         else Cohttp.Header.init () in
-      let lock_request = ((Request.make ~meth:(`Other "LOCK") ~headers (Request.uri req)), body) in
+      let lock_request = ((Request.make ~headers (Request.uri req)), body) in
       match forward_to_others ips (`Other "LOCK") lock_request with
       | None -> critical_error (Failure "Impossible case, LOCK cannot be forwarded")
       | Some x ->
@@ -186,34 +186,57 @@ let format_ips =
     | _ -> failwith ("The command-line argument is not a valid IP: " ^ str)
   )
 
-let get_addr_from_ch = function
-| Conduit_lwt_unix.TCP {Conduit_lwt_unix.fd; _} -> begin (* Also contains ip and port *)
-  match Lwt_unix.getpeername fd with
-  | Lwt_unix.ADDR_INET (ia, _port) -> Ipaddr.to_string (Ipaddr_unix.of_inet_addr ia)
-  | _ -> failwith "Not a TCP socket" end
-| _ -> "<error>"
-
 let discover ips (req, body) =
   let body = String.concat ~sep:"\n" (List.map ~f:Uri.to_string ips) in
   Server.respond_string ~status:`OK ~body ()
 
-let hello ch ips (req, body) =
+let get_remote_uri ch body =
+  let get_addr_from_ch = function
+  | Conduit_lwt_unix.TCP {Conduit_lwt_unix.fd; _} -> begin (* Also contains ip and port *)
+    match Lwt_unix.getpeername fd with
+    | Lwt_unix.ADDR_INET (ia, _port) -> Ipaddr.to_string (Ipaddr_unix.of_inet_addr ia)
+    | _ -> failwith "Not an IP socket" end
+  | _ -> failwith "Not a TCP socket"
+  in
   [get_addr_from_ch ch] |> format_ips |> List.hd |> function
-  | None -> critical_error (Failure "Could not extract raw IP from the socket")
+  | None -> failwith "Could not extract raw IP from the socket"
   | Some remote_ip ->
-    Body.to_string body >>= fun port ->
-      let remote_uri = Uri.with_port remote_ip (Some (Int.of_string port)) in
-      known_servers := List.append (!known_servers) [remote_uri];
-      List.map ~f:Uri.to_string (!known_servers) |> String.concat ~sep:"---" |> print_endline;
-      ok ()
+    Body.to_string body >|= fun port ->
+      Uri.with_port remote_ip (Some (Int.of_string port))
 
-let callback (ch, _) (_:servers) ((req, _) as http_request) =
+let hello ch ips (req, body) : http_response t =
+  get_remote_uri ch body
+  >>= fun remote_uri ->
+    known_servers := List.append (!known_servers) [remote_uri];
+    ok ()
+
+let bye ch ips (req, body) =
+  get_remote_uri ch body >>= fun remote_uri ->
+    let string_remote = Uri.to_string remote_uri in
+    known_servers := (List.filter_map
+      ~f:(fun uri -> if (Uri.to_string uri) <> string_remote then (Some uri) else None)
+      (!known_servers)
+    );
+    print_endline ((!known_servers) |> List.map ~f:Uri.to_string |> String.concat ~sep:"==");
+    ok ()
+
+let disconnect port ips (req, body) =
+  match forward_to_others ips (`Other "BYE") ((Request.make (Uri.make ())), (Body.of_string (Int.to_string port))) with
+  | None -> failwith "Impossible case, BYE cannot be forwarded"
+  | Some ls -> ls >>= fun responses ->
+    let pair = if List.for_all ~f:((=) `OK <*> Response.status <*> fst) responses then ok ()
+    else critical_error (Failure "Not all servers responded OK to the disconnect request. Cluster inconsistent.")
+    in
+    ignore (Lwt_preemptive.detach (fun () -> Unix.sleep 1; exit 0) ());
+    pair
+
+let callback ~port (ch, _) (_:servers) ((req, _) as http_request) =
   let ips = !known_servers in
   try_lwt (
-    ignore (Lwt_io.printf "%s %s\n%s"
+    ignore (Lwt_io.printlf "%s %s\n%s\n-----------------"
       (Cohttp.Code.string_of_method (Request.meth req))
       (Uri.to_string (Request.uri req))
-      (String.concat ~sep:"\n" (Cohttp.Header.to_lines (Request.headers req))));
+      (String.concat ~sep:"" (Cohttp.Header.to_lines (Request.headers req))));
     match Request.meth (fst http_request) with
     | `GET -> get ips http_request
     | `Other "LOCK" -> lock ips http_request
@@ -222,6 +245,8 @@ let callback (ch, _) (_:servers) ((req, _) as http_request) =
     | `DELETE -> delete ips http_request
     | `Other "DISCOVER" -> discover ips http_request
     | `Other "HELLO" -> hello ch ips http_request
+    | `Other "BYE" -> bye ch ips http_request
+    | `Other "DISCONNECT" -> disconnect port ips http_request
     | meth -> Server.respond_string ~status:`Method_not_allowed ~body:("Method unimplemented: " ^ Cohttp.Code.string_of_method meth) ()
   ) with e -> critical_error e
 
@@ -231,18 +256,23 @@ let discovery_startup port ip_str =
   >>= (Body.to_string <*> snd)
   >|= (List.dedup <*> List.append [uri] <*> format_ips <*> String.split_lines)
   >>= fun ips ->
-    print_endline (List.map ~f:Uri.to_string ips |> String.concat ~sep:", ");
-    match forward_to_others ips (`Other "HELLO") ((Request.make ~meth:(`Other "HELLO") uri), (Body.of_string (Int.to_string port))) with
+    ignore (Lwt_io.printlf "Joined %s" (List.map ~f:Uri.to_string ips |> String.concat ~sep:", "));
+    match forward_to_others ips (`Other "HELLO") ((Request.make uri), (Body.of_string (Int.to_string port))) with
     | None -> failwith "Impossible case, HELLO cannot be forwarded"
-    | Some ls -> ls >|= fun responses ->
-      if List.for_all ~f:((=) `OK <*> Response.status <*> fst) responses then ips
-      else failwith "Not all servers responded OK to the join request. Cluster inconsistent."
+    | Some ls -> ls >>= fun responses ->
+      if List.for_all ~f:((=) `OK <*> Response.status <*> fst) responses then return ips
+      else (
+        ignore (Lwt_io.printl "Failed to join the cluster, attempting to disconnect cleanly...");
+        disconnect port ips ((Request.make (Uri.make ())), (Body.of_string ""))
+        >|= (Response.status <*> fst) >|= function
+        | `OK -> []
+        | _ -> failwith "Failed to disconnect cleanly. The cluster is inconsistent.")
 
 let make_server ~port ips () =
   known_servers := ips;
   let ctx = Cohttp_lwt_unix_net.init () in
   let mode = `TCP (`Port port) in
   let config_tcp =
-    Server.make ~callback:(fun conn -> Tuple2.curry (callback conn ips)) ()
+    Server.make ~callback:(fun conn -> Tuple2.curry (callback ~port conn ips)) ()
   in
   Server.create ~ctx ~mode config_tcp
