@@ -5,13 +5,19 @@ HTTPFS provides a REST interface that exposes a distributed filesystem as if it 
 
 ***The servers must be free of conflicts on startup.***
 
+The system will then guarantee that files only exist on a single server.
+
 Starting a server:
 
 ```
-./httpfs [-p PORT] [list of remote servers]
+./httpfs [-p PORT] [[list of remote servers] | [-d REMOTE_SERVER]
 ```
 
-The system will guarantee that files only exist on a single server.
+###### Arguments
+
+- ***-p*** Override the default port (2020)
+- ***-d*** Instead of a list of all the servers, the server will contact a single remote server and ask for its list of known servers. It'll then join the cluster.
+
 
 ### API reference
 
