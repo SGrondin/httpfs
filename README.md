@@ -18,6 +18,13 @@ Starting a server:
 - ***-p*** Override the default port (2020)
 - ***-d*** Instead of a list of all the servers, the server will contact a single remote server and ask for its list of known servers. It'll then join the cluster.
 
+### Joining and leaving a cluster
+
+A server can be added to a cluster by using the `-d` command line switch.
+
+A server can leave a cluster by sending it a DISCONNECT HTTP request.
+
+When starting in discovery mode, the server will try to join a cluster. If it fails to join because not all the hosts accepted it, it'll then attempt to disconnect cleanly as to not leave the cluster in an inconsistent state.
 
 ### API reference
 
@@ -52,3 +59,7 @@ Delete.
 On a file: deletes the file.
 
 On a directory: deletes the directory. The directory must be empty. The `is-directory` header must be set.
+
+#### DISCONNECT
+
+Leave the cluster.

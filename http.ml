@@ -217,7 +217,6 @@ let bye ch ips (req, body) =
       ~f:(fun uri -> if (Uri.to_string uri) <> string_remote then (Some uri) else None)
       (!known_servers)
     );
-    print_endline ((!known_servers) |> List.map ~f:Uri.to_string |> String.concat ~sep:"==");
     ok ()
 
 let disconnect port ips (req, body) =
