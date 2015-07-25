@@ -34,12 +34,17 @@ namespace Httpfs.Client
 
             this.FolderListView.MouseDoubleClick += (sender, args) =>
             {
-                if (this.FileListView.SelectedItem == null) return;
+                if (this.FolderListView.SelectedItem == null) return;
 
                 this.RefreshList(this.CurrentPath.Combine(this.FolderListView.SelectedItem.ToString()));
             };
 
-            this.FileListView.MouseDoubleClick += (sender, args) => this.DownloadSelectedFile();
+            this.FileListView.MouseDoubleClick += (sender, args) =>
+            {
+                if (this.FileListView.SelectedItem == null) return;
+
+                this.DownloadSelectedFile(this.CurrentPath.Combine(this.FileListView.SelectedItem.ToString()));
+            };
 
             this.FileListView.Drop += async (sender, args) =>
             {
@@ -87,17 +92,13 @@ namespace Httpfs.Client
 
             this.DeleteFileContextMenuItem.Click += async (sender, args) =>
             {
-                if (this.FileListView.SelectedItem == null) return;
-
-                await this.DeleteFile(this.FileListView.SelectedItem.ToString());
+                await Task.WhenAll(this.FileListView.SelectedItems.Cast<Url>().Select(this.DeleteFile));
                 this.RefreshList();
             };
 
             this.DeleteFolderContextMenuItem.Click += async (sender, args) =>
             {
-                if (this.FolderListView.SelectedItem == null) return;
-
-                await this.DeleteFolder(this.FolderListView.SelectedItem.ToString());
+                await Task.WhenAll(this.FolderListView.SelectedItems.Cast<Url>().Select(this.DeleteFolder));
                 this.RefreshList();
             };
 
@@ -172,26 +173,15 @@ namespace Httpfs.Client
 
             var result = await this._proxy.ListDirectory(this.CurrentPath, DefaultHttpErrorHandler);
 
-            this.FolderListView.ItemsSource = result.Folders;
-            this.FileListView.ItemsSource = result.Files;
+            this.FolderListView.ItemsSource = result.Folders.OrderBy(f => f.ToString());
+            this.FileListView.ItemsSource = result.Files.OrderBy(f => f.GetFileName());
         }
 
-        private void DownloadSelectedFile()
+        private void DownloadSelectedFile(Url path)
         {
-            var selectedFile = this.FileListView.SelectedItem.ToString();
+            var downloadToUrl = this._config.LocalRoot.Combine(path);
 
-            if (string.IsNullOrEmpty(selectedFile))
-            {
-                return;
-            }
-
-            var absoluteSelectedPath = this.CurrentPath.Combine(selectedFile);
-
-            var downloadToUrl = this._config.LocalRoot
-                .Combine(this.CurrentPath)
-                .Combine(selectedFile);
-
-            this._proxy.DownloadFile(absoluteSelectedPath, downloadToUrl, DefaultHttpErrorHandler);
+            this._proxy.DownloadFile(path, downloadToUrl, DefaultHttpErrorHandler);
         }
 
         private async Task UploadFile(Url folder, Url path)
