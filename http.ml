@@ -79,15 +79,14 @@ let get ips (req, body) =
             (get_directory_content fname
             >>= (fun local_content ->
                 Lwt_list.map_p (Body.to_string <*> snd) contents
-                >|= (List.join <*> List.map ~f:String.split_lines)
-                >|= List.append local_content
-                >|= List.dedup ~compare:String.compare
-                >|= List.fold ~init:"" ~f:(fun acc -> fun file -> file ^ "\n" ^ acc))
+                >|= (List.fold ~init:"" ~f:(fun acc -> fun file -> file ^ "\n" ^ acc)
+                  <*> List.dedup ~compare:String.compare
+                  <*> List.append local_content
+                  <*> List.join
+                  <*> List.map ~f:String.split_lines))
             >>= fun body -> Server.respond_string
               ~headers:(Cohttp.Header.init_with "is-directory" "true")
-              ~status:`OK
-              ~body
-              ())
+              ~status:`OK ~body ())
           else
             let contents' =
               List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst) contents
