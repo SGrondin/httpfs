@@ -27,6 +27,7 @@
                 <ListView.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Refresh" Name="RefreshFolderContextMenuItem"></MenuItem>
+                        <MenuItem Header="Create folder" Name="CreateFolderContextMenuItem"></MenuItem>
                         <MenuItem Header="Delete" Name="DeleteFolderContextMenuItem"></MenuItem>
                     </ContextMenu>
                 </ListView.ContextMenu>
@@ -36,6 +37,7 @@
                 <ListView.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Refresh" Name="RefreshFileContextMenuItem"></MenuItem>
+                        <MenuItem Header="Create empty file" Name="CreateEmptyFilerContextMenuItem"></MenuItem>
                         <MenuItem Header="Delete" Name="DeleteFileContextMenuItem"></MenuItem>
                     </ContextMenu>
                 </ListView.ContextMenu>

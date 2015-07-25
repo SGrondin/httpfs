@@ -61,6 +61,18 @@ namespace Httpfs.Client
             this.RefreshFolderContextMenuItem.Click += (sender, args) => this.RefreshList();
             this.RefreshFileContextMenuItem.Click += (sender, args) => this.RefreshList();
 
+            this.CreateFolderContextMenuItem.Click += async (sender, args) =>
+            {
+                await this.CreateFolder();
+                this.RefreshList();
+            };
+
+            this.CreateEmptyFilerContextMenuItem.Click += async (sender, args) =>
+            {
+                await this.CreateEmptyFile();
+                this.RefreshList();
+            };
+
             this.FileMenuCreateEmptyFile.Click += async (sender, args) =>
             {
                 await this.CreateEmptyFile();
