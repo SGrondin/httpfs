@@ -49,17 +49,7 @@ namespace Httpfs.Client
             this.FileListView.Drop += async (sender, args) =>
             {
                 var files = (string[])args.Data.GetData(DataFormats.FileDrop);
-
-                if (files.Length > 0)
-                {
-                    var urls = files.Select(f => new Url(f));
-
-                    foreach (var url in urls)
-                    {
-                        await this.UploadFile(this.CurrentPath, url);
-                    }
-                }
-
+                await Task.WhenAll(files.Select(f => this.UploadFile(this.CurrentPath, f)));
                 this.RefreshList();
             };
 
