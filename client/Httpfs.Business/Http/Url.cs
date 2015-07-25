@@ -61,6 +61,11 @@ namespace httpfsc.Business.Http
             return Path.GetFullPath(this);
         }
 
+        public string GetFileName()
+        {
+            return Path.GetFileName(this);
+        }
+
         #endregion
     }
 }

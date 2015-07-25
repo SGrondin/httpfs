@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace httpfsc.Business.Http.FileSystem.Results.List
+namespace httpfsc.Business.Http.FileSystem.Results
 {
     public class ListDirectoryResult
     {

@@ -49,7 +49,7 @@
     <Compile Include="Http\FileSystem\Exceptions\NotADirectoryException.cs" />
     <Compile Include="Http\HttpFileSystemProxy.cs" />
     <Compile Include="Http\IHttpFileSystemProxyConfig.cs" />
-    <Compile Include="Http\FileSystem\Results\List\ListDirectoryResult.cs" />
+    <Compile Include="Http\FileSystem\Results\ListDirectoryResult.cs" />
     <Compile Include="Http\Url.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
