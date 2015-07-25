@@ -56,8 +56,8 @@ namespace httpfsc.Business.Http
 
             return null;
         }
-
-        public async void DownloadFile(Url path, Url to, Action<HttpStatusCode, string> errorHandler)
+        
+        public async Task DownloadFile(Url path, Url to, Action<HttpStatusCode, string> errorHandler)
         {
             var request = new RestRequest(path, Method.GET);
 

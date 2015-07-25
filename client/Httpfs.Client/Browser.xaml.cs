@@ -32,18 +32,19 @@ namespace Httpfs.Client
 
             this.CurrentPath = "/";
 
+            this._config = new ClientConfig();
+            this._proxy = new HttpFileSystemProxy(this._config);
+
             this.FolderListView.MouseDoubleClick += (sender, args) =>
             {
                 if (this.FolderListView.SelectedItem == null) return;
-
                 this.RefreshList(this.CurrentPath.Combine(this.FolderListView.SelectedItem.ToString()));
             };
 
-            this.FileListView.MouseDoubleClick += (sender, args) =>
+            this.FileListView.MouseDoubleClick += async (sender, args) =>
             {
                 if (this.FileListView.SelectedItem == null) return;
-
-                this.DownloadSelectedFile(this.CurrentPath.Combine(this.FileListView.SelectedItem.ToString()));
+                await this.DownloadFile(this.CurrentPath.Combine(this.FileListView.SelectedItem.ToString()));
             };
 
             this.FileListView.Drop += async (sender, args) =>
@@ -53,7 +54,14 @@ namespace Httpfs.Client
                 this.RefreshList();
             };
 
+            this.DownloadFilesContextMenuItem.Click += async (sender, args) =>
+            {
+                await Task.WhenAll(this.FileListView.SelectedItems.Cast<Url>().Select(this.DownloadFile));
+                this.RefreshList();
+            };
+
             this.RefreshFolderContextMenuItem.Click += (sender, args) => this.RefreshList();
+
             this.RefreshFileContextMenuItem.Click += (sender, args) => this.RefreshList();
 
             this.CreateFolderContextMenuItem.Click += async (sender, args) =>
@@ -91,9 +99,6 @@ namespace Httpfs.Client
                 await Task.WhenAll(this.FolderListView.SelectedItems.Cast<Url>().Select(this.DeleteFolder));
                 this.RefreshList();
             };
-
-            this._config = new ClientConfig();
-            this._proxy = new HttpFileSystemProxy(this._config);
 
             this.RefreshList();
         }
@@ -167,11 +172,11 @@ namespace Httpfs.Client
             this.FileListView.ItemsSource = result.Files.OrderBy(f => f.GetFileName());
         }
 
-        private void DownloadSelectedFile(Url path)
+        private async Task DownloadFile(Url path)
         {
             var downloadToUrl = this._config.LocalRoot.Combine(path);
 
-            this._proxy.DownloadFile(path, downloadToUrl, DefaultHttpErrorHandler);
+            await this._proxy.DownloadFile(path, downloadToUrl, DefaultHttpErrorHandler);
         }
 
         private async Task UploadFile(Url folder, Url path)
