@@ -11,9 +11,8 @@
         <Grid Row="0">
             <Menu>
                 <MenuItem Header="File">
-                    <MenuItem Header="Create new" Name="FileMenuCreate"></MenuItem>
-                    <MenuItem Header="Upload" Name="FileMenuUpload"></MenuItem>
-                    <MenuItem Header="Delete" Name="FileMenuDelete"></MenuItem>
+                    <MenuItem Header="Create empty file" Name="FileMenuCreateEmptyFile"></MenuItem>
+                    <MenuItem Header="Create folder" Name="FileMenuCreateFolder"></MenuItem>
                 </MenuItem>
             </Menu>
         </Grid>
@@ -24,8 +23,23 @@
                 <ColumnDefinition></ColumnDefinition>
             </Grid.ColumnDefinitions>
 
-            <ListView Name="FolderListView" Grid.Column="0"></ListView>
-            <ListView Name="CurrentFolderListView" Grid.Column="1"></ListView>
+            <ListView Name="FolderListView" Grid.Column="0">
+                <ListView.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Refresh" Name="RefreshFolderContextMenuItem"></MenuItem>
+                        <MenuItem Header="Delete" Name="DeleteFolderContextMenuItem"></MenuItem>
+                    </ContextMenu>
+                </ListView.ContextMenu>
+            </ListView>
+            
+            <ListView Name="FileListView" AllowDrop="True" Grid.Column="1">
+                <ListView.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Refresh" Name="RefreshFileContextMenuItem"></MenuItem>
+                        <MenuItem Header="Delete" Name="DeleteFileContextMenuItem"></MenuItem>
+                    </ContextMenu>
+                </ListView.ContextMenu>
+            </ListView>
         </Grid>
     </Grid>
 </Window>
