@@ -116,13 +116,30 @@ let lock ips (req, body) =
   | Ok true -> conflict ()
   | Ok false ->
     Hashtbl.set locked fname true;
-    ignore (Lwt_unix.timeout lock_timeout >|= fun () -> Hashtbl.remove locked fname);
+    ignore (Lwt_preemptive.detach (fun () -> Unix.sleep 1; Hashtbl.remove locked fname) ());
     ok ()
   | Error e -> critical_error e
 
 let post ips (req, body) =
   let fname = get_filename req in
   let is_dir = Option.is_some (Cohttp.Header.get (Request.headers req) "is-directory") in
+  let create_exn chunks =
+    Lwt_list.fold_left_s (fun (acc, i) chunk ->
+      if chunk = "" then return (acc, (i+1)) else (* Ignore consecutive slashes *)
+      let added = chunk :: acc in
+      let partial_name = String.concat ~sep:"/" (List.rev added) in
+      try_lwt (
+        if (is_dir || (List.length chunks) <> i) then (* Create a directory *)
+          Lwt_unix.mkdir partial_name 493 >|= fun () -> (added, (i+1)) (* octal 755 = decimal 493 *)
+        else (* Create a file *)
+          Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output partial_name (fun ch ->
+            Lwt_io.write ch "" >|= fun () -> (added, (i+1))
+          )
+      ) with
+      | Unix.Unix_error (Unix.EEXIST, _, _) -> return (added, (i+1))
+      | e -> raise e
+    ) ([], 1) chunks
+  in
   match Hashtbl.find locked fname with
   | Some el -> conflict ()
   | None ->
@@ -138,14 +155,9 @@ let post ips (req, body) =
       | Some x ->
         x >>= fun responses ->
           if List.for_all ~f:((=) `OK <*> Response.status <*> fst) responses then
-            (try_lwt (
-              if is_dir then
-                Lwt_unix.mkdir fname 493 >>= ok (* octal 755 = decimal 493 *)
-              else
-                Lwt_io.with_file ~flags:[Unix.O_WRONLY; Unix.O_CREAT] ~mode:Lwt_io.output fname (fun ch ->
-                  Lwt_io.write ch "" >>= ok
-                )
-            ) with e -> critical_error e)
+            match Result.try_with (fun () -> create_exn (String.split ~on:'/' (Uri.path (Request.uri req)))) with
+            | Ok _ -> ok ()
+            | Error e -> critical_error e
           else conflict ()
 
 let put ips (req, body) =
