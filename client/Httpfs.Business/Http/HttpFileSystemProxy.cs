@@ -75,7 +75,7 @@ namespace httpfsc.Business.Http
                     Directory.CreateDirectory(to.GetDirectoryName());
                 }
 
-                File.WriteAllText(to.GetFullPath(), fileBytes.Content, Encoding.Default);
+                File.WriteAllText(to.FullPath, fileBytes.Content, Encoding.Default);
             }
             else if (errorHandler != null)
             {

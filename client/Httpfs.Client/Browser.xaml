@@ -6,6 +6,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         
         <Grid Row="0">
@@ -47,6 +48,12 @@
                     </ContextMenu>
                 </ListView.ContextMenu>
             </ListView>
+        </Grid>
+
+        <Grid Row="2">
+            <StatusBar>
+                <TextBlock Name="CurrentPathTextBlock"/> 
+            </StatusBar>
         </Grid>
     </Grid>
 </Window>

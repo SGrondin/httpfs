@@ -43,7 +43,7 @@ namespace httpfsc.Business.Http
 
         public Url Combine(Url url)
         {
-            if (url == null || url == "/")
+            if (url == null || url == "/" || url == "\\")
             {
                 return this;
             }
@@ -56,14 +56,28 @@ namespace httpfsc.Business.Http
             return Path.GetDirectoryName(this);
         }
 
-        public Url GetFullPath()
+        public Url FullPath
         {
-            return Path.GetFullPath(this);
+            get
+            {
+                return Path.GetFullPath(this);
+            }
         }
 
-        public string GetFileName()
+        public string FileName
         {
-            return Path.GetFileName(this);
+            get
+            {
+                return Path.GetFileName(this);
+            }
+        }
+
+        public bool IsDirectory
+        {
+            get
+            {
+                return File.GetAttributes(this).HasFlag(FileAttributes.Directory);
+            }
         }
 
         #endregion
