@@ -35,6 +35,7 @@ sandbox:
 	echo 'This is file b' > sandbox2/b.txt
 
 run: stop
+	sleep 1
 	pushd sandbox1 && ../httpfs -p 2020 127.0.0.1:2021 > ../out1.txt &
 	pushd sandbox2 && ../httpfs -p 2021 127.0.0.1:2020 > ../out2.txt &
 

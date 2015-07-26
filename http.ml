@@ -15,7 +15,9 @@ let lock_timeout = 1.5
 let known_servers = ref []
 
 let get_filename req =
-  let path = Uri.path (Request.uri req) in
+  let path = req |> Request.uri |> Uri.path |> String.split ~on:'/'
+  |> List.filter ~f:(fun x -> (x <> ".") || (x <> "..")) |> String.concat ~sep:"/"
+  in
   Sys.getcwd () ^ path
 
 let critical_error e =
@@ -175,17 +177,37 @@ let put ips (req, body) =
   | e -> critical_error e
 
 let delete ips (req, body) =
-  let filename = get_filename req in
-  try_lwt (
-    (Option.value_map (Cohttp.Header.get (Request.headers req) "is-directory")
-      ~default:Lwt_unix.unlink ~f:(fun _ -> Lwt_unix.rmdir)) filename >>= ok
+  let fname = get_filename req in
+  let cwd = Sys.getcwd () in
+  print_endline fname;
+  print_endline cwd;
+  if fname = cwd || fname = (cwd ^ "/") || (fname ^ "/") = cwd then critical_error (Failure "Can't delete the root") else
+  let result = try_lwt (
+    match Cohttp.Header.get (Request.headers req) "is-directory" with
+    | None -> Lwt_unix.unlink fname >>= ok
+    | Some _ ->
+      Lwt_process.with_process ("", [|"rm"; "-r"; fname|]) (fun proc ->
+        Lwt_io.read_lines proc#stdout |> Lwt_stream.to_list >>= fun lines ->
+          ignore (Lwt_io.printlf "rm -r %s printed %s" fname (String.concat lines));
+        proc#status >>= function
+        | WEXITED 0 | WSIGNALED 0 | WSTOPPED 0 -> ok ()
+        | WEXITED s | WSIGNALED s | WSTOPPED s ->
+          critical_error (Failure ("Recursive deletion exited with code " ^ (Int.to_string s)))
+        | _ -> critical_error (Failure "Recursive deletion unknown error")
+      )
   ) with
-  | Unix.Unix_error (Unix.ENOENT, _, _) ->
-    Option.value_map
-      ~default:(not_found ())
-      ~f:(Fn.flip Lwt.bind only_one_response)
-      (forward_to_others ips `DELETE (req, body))
+  | Unix.Unix_error (Unix.ENOENT, _, _) -> ok ()
   | e -> critical_error e
+  in
+  match forward_to_others ips `DELETE (req, body) with
+  | None -> result
+  | Some x -> x >>= fun responses ->
+    result >>= fun res ->
+    let all_res = res :: responses in
+    if List.for_all ~f:((=) `OK <*> Response.status <*> fst) all_res then ok ()
+    else critical_error (Failure (
+      List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst) all_res |> String.concat ~sep:"\n")
+    )
 
 let format_ips =
   List.map ~f:(fun str ->
@@ -215,7 +237,7 @@ let get_remote_uri ch body =
     Body.to_string body >|= fun port ->
       Uri.with_port remote_ip (Some (Int.of_string port))
 
-let hello ch ips (req, body) : http_response t =
+let hello ch ips (req, body) =
   get_remote_uri ch body
   >>= fun remote_uri ->
     known_servers := List.append (!known_servers) [remote_uri];
