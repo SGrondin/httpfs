@@ -5,6 +5,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 
 using Httpfs.Client.UI;
 
@@ -21,6 +22,7 @@ namespace Httpfs.Client
 
         private readonly HttpFileSystemProxy _proxy;
         private readonly ClientConfig _config;
+        private Url _currentPath;
 
         #endregion
 
@@ -30,20 +32,24 @@ namespace Httpfs.Client
         {
             this.InitializeComponent();
 
+            this._config = new ClientConfig();
+            this._proxy = new HttpFileSystemProxy(this._config);
+
             this.CurrentPath = "/";
 
             this.FolderListView.MouseDoubleClick += (sender, args) =>
             {
                 if (this.FolderListView.SelectedItem == null) return;
-
+                if (this.CurrentPath == "/" && this.FolderListView.SelectedItem.ToString() == "../") return;
+                if (this.CurrentPath == "/" && this.FolderListView.SelectedItem.ToString() == "./") return;
                 this.RefreshList(this.CurrentPath.Combine(this.FolderListView.SelectedItem.ToString()));
             };
 
-            this.FileListView.MouseDoubleClick += (sender, args) =>
+            this.FileListView.MouseDoubleClick += async (sender, args) =>
             {
+                if (this.CurrentPath == "/") return;
                 if (this.FileListView.SelectedItem == null) return;
-
-                this.DownloadSelectedFile(this.CurrentPath.Combine(this.FileListView.SelectedItem.ToString()));
+                await this.DownloadFile(this.CurrentPath.Combine(this.FileListView.SelectedItem.ToString()));
             };
 
             this.FileListView.Drop += async (sender, args) =>
@@ -53,7 +59,14 @@ namespace Httpfs.Client
                 this.RefreshList();
             };
 
+            this.DownloadFilesContextMenuItem.Click += async (sender, args) =>
+            {
+                await Task.WhenAll(this.FileListView.SelectedItems.Cast<Url>().Select(this.DownloadFile));
+                this.RefreshList();
+            };
+
             this.RefreshFolderContextMenuItem.Click += (sender, args) => this.RefreshList();
+
             this.RefreshFileContextMenuItem.Click += (sender, args) => this.RefreshList();
 
             this.CreateFolderContextMenuItem.Click += async (sender, args) =>
@@ -82,18 +95,33 @@ namespace Httpfs.Client
 
             this.DeleteFileContextMenuItem.Click += async (sender, args) =>
             {
-                await Task.WhenAll(this.FileListView.SelectedItems.Cast<Url>().Select(this.DeleteFile));
+                await this.DeleteAllSelectedFiles();
                 this.RefreshList();
             };
 
             this.DeleteFolderContextMenuItem.Click += async (sender, args) =>
             {
-                await Task.WhenAll(this.FolderListView.SelectedItems.Cast<Url>().Select(this.DeleteFolder));
+                await this.DeleteAllSelectedFolders();
                 this.RefreshList();
             };
 
-            this._config = new ClientConfig();
-            this._proxy = new HttpFileSystemProxy(this._config);
+            this.FileListView.KeyUp += async (sender, args) =>
+            {
+                if (args.Key == Key.Delete)
+                {
+                    await this.DeleteAllSelectedFiles();
+                    this.RefreshList();
+                }
+            };
+
+            this.FolderListView.KeyUp += async (sender, args) =>
+            {
+                if (args.Key == Key.Delete)
+                {
+                    await this.DeleteAllSelectedFolders();
+                    this.RefreshList();
+                }
+            };
 
             this.RefreshList();
         }
@@ -116,11 +144,33 @@ namespace Httpfs.Client
             }
         }
 
-        private Url CurrentPath { get; set; }
+        private Url CurrentPath
+        {
+            get
+            {
+                return this._currentPath;
+            }
+
+            set
+            {
+                this._currentPath = value;
+                this.CurrentPathTextBlock.Text = this._config.LocalRoot.Combine(value).FullPath;
+            }
+        }
 
         #endregion
 
         #region Methods
+
+        private async Task DeleteAllSelectedFolders()
+        {
+            await Task.WhenAll(this.FolderListView.SelectedItems.Cast<Url>().Select(this.DeleteFolder));
+        }
+
+        private async Task DeleteAllSelectedFiles()
+        {
+            await Task.WhenAll(this.FileListView.SelectedItems.Cast<Url>().Select(this.DeleteFile));
+        }
 
         private async Task DeleteFile(Url path)
         {
@@ -164,19 +214,21 @@ namespace Httpfs.Client
             var result = await this._proxy.ListDirectory(this.CurrentPath, DefaultHttpErrorHandler);
 
             this.FolderListView.ItemsSource = result.Folders.OrderBy(f => f.ToString());
-            this.FileListView.ItemsSource = result.Files.OrderBy(f => f.GetFileName());
+            this.FileListView.ItemsSource = result.Files.OrderBy(f => f.FileName);
         }
 
-        private void DownloadSelectedFile(Url path)
+        private async Task DownloadFile(Url path)
         {
             var downloadToUrl = this._config.LocalRoot.Combine(path);
 
-            this._proxy.DownloadFile(path, downloadToUrl, DefaultHttpErrorHandler);
+            await this._proxy.DownloadFile(path, downloadToUrl, DefaultHttpErrorHandler);
         }
 
         private async Task UploadFile(Url folder, Url path)
         {
-            var to = folder.Combine(path.GetFileName());
+            if (path.IsDirectory) return;
+
+            var to = folder.Combine(path.FileName);
             var file = File.ReadAllText(path, Encoding.Default);
 
             await this._proxy.UploadFile(to, file, DefaultHttpErrorHandler);

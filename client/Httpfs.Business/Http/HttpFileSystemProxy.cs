@@ -56,8 +56,8 @@ namespace httpfsc.Business.Http
 
             return null;
         }
-
-        public async void DownloadFile(Url path, Url to, Action<HttpStatusCode, string> errorHandler)
+        
+        public async Task DownloadFile(Url path, Url to, Action<HttpStatusCode, string> errorHandler)
         {
             var request = new RestRequest(path, Method.GET);
 
@@ -75,7 +75,7 @@ namespace httpfsc.Business.Http
                     Directory.CreateDirectory(to.GetDirectoryName());
                 }
 
-                File.WriteAllText(to.GetFullPath(), fileBytes.Content, Encoding.Default);
+                File.WriteAllText(to.FullPath, fileBytes.Content, Encoding.Default);
             }
             else if (errorHandler != null)
             {
