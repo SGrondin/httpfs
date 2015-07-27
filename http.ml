@@ -149,7 +149,7 @@ let post ips (req, body) =
     | Error e -> critical_error e
     | Ok false ->
       let headers = if is_dir then Cohttp.Header.init_with "is-directory" "true"
-        else Cohttp.Header.init () in
+      else Cohttp.Header.init () in
       let lock_request = ((Request.make ~headers (Request.uri req)), body) in
       match forward_to_others ips (`Other "LOCK") lock_request with
       | None -> critical_error (Failure "Impossible case, LOCK cannot be forwarded")
@@ -179,8 +179,6 @@ let put ips (req, body) =
 let delete ips (req, body) =
   let fname = get_filename req in
   let cwd = Sys.getcwd () in
-  print_endline fname;
-  print_endline cwd;
   if fname = cwd || fname = (cwd ^ "/") || (fname ^ "/") = cwd then critical_error (Failure "Can't delete the root") else
   let result = try_lwt (
     match Cohttp.Header.get (Request.headers req) "is-directory" with
