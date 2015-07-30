@@ -1,12 +1,18 @@
 ﻿using System;
 using System.IO;
 
-namespace httpfsc.Business.Http
+namespace Httpfsc.Business.Http
 {
+    /// <summary>
+    /// Un objet pour représenter et manipuler un URL.
+    /// </summary>
     public sealed class Url
     {
         #region Fields
 
+        /// <summary>
+        /// Backing field pour l'URL.
+        /// </summary>
         private readonly string _url;
 
         #endregion
@@ -16,6 +22,34 @@ namespace httpfsc.Business.Http
         public Url(string url)
         {
             this._url = url;
+        }
+
+        #endregion
+
+        #region Properties
+
+        public Url FullPath
+        {
+            get
+            {
+                return Path.GetFullPath(this);
+            }
+        }
+
+        public string FileName
+        {
+            get
+            {
+                return Path.GetFileName(this);
+            }
+        }
+
+        public bool IsDirectory
+        {
+            get
+            {
+                return File.GetAttributes(this).HasFlag(FileAttributes.Directory);
+            }
         }
 
         #endregion
@@ -54,30 +88,6 @@ namespace httpfsc.Business.Http
         public Url GetDirectoryName()
         {
             return Path.GetDirectoryName(this);
-        }
-
-        public Url FullPath
-        {
-            get
-            {
-                return Path.GetFullPath(this);
-            }
-        }
-
-        public string FileName
-        {
-            get
-            {
-                return Path.GetFileName(this);
-            }
-        }
-
-        public bool IsDirectory
-        {
-            get
-            {
-                return File.GetAttributes(this).HasFlag(FileAttributes.Directory);
-            }
         }
 
         #endregion

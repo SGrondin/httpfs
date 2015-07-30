@@ -5,14 +5,17 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
-using httpfsc.Business.Http.FileSystem.Exceptions;
-using httpfsc.Business.Http.FileSystem.Results;
+using Httpfsc.Business.Http.FileSystem.Exceptions;
+using Httpfsc.Business.Http.FileSystem.Results;
 
 using RestSharp;
 
-namespace httpfsc.Business.Http
+namespace Httpfsc.Business.Http
 {
-    public class HttpFileSystemProxy
+    /// <summary>
+    /// Proxy au système de fichiers distribués.
+    /// </summary>
+    public class HttpFileSystemProxy : IHttpFileSystemProxy
     {
         #region Constructors
 
@@ -25,12 +28,23 @@ namespace httpfsc.Business.Http
 
         #region Properties
 
+        /// <summary>
+        /// Le HTTP Client.
+        /// </summary>
+        /// <value>Le HTTP client.</value>
         private RestClient Client { get; set; }
 
         #endregion
 
         #region Methods
 
+        /// <summary>
+        /// Get the contents of a directory.
+        /// </summary>
+        /// <param name="path">Remote relative path.</param>
+        /// <param name="errorHandler">The error handler.</param>
+        /// <returns>The <see cref="Task"/>.</returns>
+        /// <exception cref="NotADirectoryException"></exception>
         public async Task<ListDirectoryResult> ListDirectory(Url path, Action<HttpStatusCode, string> errorHandler)
         {
             var request = new RestRequest(path, Method.GET);
@@ -56,9 +70,18 @@ namespace httpfsc.Business.Http
 
             return null;
         }
-        
+
+        /// <summary>
+        /// Download a file.
+        /// </summary>
+        /// <param name="path">Remote relative path of file to download.</param>
+        /// <param name="to">Local absolute path to write the file.</param>
+        /// <param name="errorHandler">The error handler.</param>
+        /// <returns>The <see cref="Task"/>.</returns>
+        /// <exception cref="NotADirectoryException">Si path indique un répertoire.</exception>
         public async Task DownloadFile(Url path, Url to, Action<HttpStatusCode, string> errorHandler)
         {
+            if (to == null) throw new ArgumentNullException("to");
             var request = new RestRequest(path, Method.GET);
 
             var fileBytes = await this.Client.ExecuteGetTaskAsync(request);
@@ -83,6 +106,13 @@ namespace httpfsc.Business.Http
             }
         }
 
+        /// <summary>
+        /// Upload a file.
+        /// </summary>
+        /// <param name="to">Remote relative path to write the file.</param>
+        /// <param name="file">Local absolute path of file to upload.</param>
+        /// <param name="errorHandler">The error handler.</param>
+        /// <returns>The <see cref="Task"/>.</returns>
         public async Task UploadFile(Url to, string file, Action<HttpStatusCode, string> errorHandler)
         {
             await this.CreateEmptyFile(to, (code, s) => { });
@@ -98,51 +128,75 @@ namespace httpfsc.Business.Http
             }
         }
 
-        public async Task CreateEmptyFile(Url path, Action<HttpStatusCode, string> errorAction)
+        /// <summary>
+        /// Create empty file.
+        /// </summary>
+        /// <param name="path">Remote relative path to write the file.</param>
+        /// <param name="errorHandler">The error handler.</param>
+        /// <returns>The <see cref="Task"/>.</returns>
+        public async Task CreateEmptyFile(Url path, Action<HttpStatusCode, string> errorHandler)
         {
             var request = new RestRequest(path, Method.POST);
             var response = await this.Client.ExecutePostTaskAsync(request);
 
-            if (errorAction != null)
+            if (errorHandler != null)
             {
-                errorAction.Invoke(response.StatusCode, response.StatusDescription);
+                errorHandler.Invoke(response.StatusCode, response.StatusDescription);
             }
         }
 
-        public async Task DeleteFile(Url path, Action<HttpStatusCode, string> errorAction)
+        /// <summary>
+        /// Delete a file.
+        /// </summary>
+        /// <param name="path">Remote relative path of the file to be deleted.</param>
+        /// <param name="errorHandler">The error handler.</param>
+        /// <returns>The <see cref="Task"/>.</returns>
+        public async Task DeleteFile(Url path, Action<HttpStatusCode, string> errorHandler)
         {
             var request = new RestRequest(path, Method.DELETE);
             var response = await this.Client.ExecuteTaskAsync(request);
 
-            if (errorAction != null)
+            if (errorHandler != null)
             {
-                errorAction.Invoke(response.StatusCode, response.StatusDescription);
+                errorHandler.Invoke(response.StatusCode, response.StatusDescription);
             }
         }
 
-        public async Task DeleteFolder(Url path, Action<HttpStatusCode, string> errorAction)
+        /// <summary>
+        /// Delete a directory.
+        /// </summary>
+        /// <param name="path">Remote relative path of the directory to be deleted.</param>
+        /// <param name="errorHandler">The error handler.</param>
+        /// <returns>The <see cref="Task"/>.</returns>
+        public async Task DeleteDirectory(Url path, Action<HttpStatusCode, string> errorHandler)
         {
             var request = new RestRequest(path, Method.DELETE);
             request.AddHeader("is-directory", "pls");
 
             var response = await this.Client.ExecuteTaskAsync(request);
 
-            if (errorAction != null)
+            if (errorHandler != null)
             {
-                errorAction.Invoke(response.StatusCode, response.StatusDescription);
+                errorHandler.Invoke(response.StatusCode, response.StatusDescription);
             }
         }
 
-        public async Task CreateFolder(Url path, Action<HttpStatusCode, string> errorAction)
+        /// <summary>
+        /// Create a directory.
+        /// </summary>
+        /// <param name="path">Le chemin relatif distant du fichier à créer.</param>
+        /// <param name="errorHandler">The error handler.</param>
+        /// <returns>The <see cref="Task"/>.</returns>
+        public async Task CreateDirectory(Url path, Action<HttpStatusCode, string> errorHandler)
         {
             var request = new RestRequest(path, Method.POST);
             request.AddHeader("is-directory", "pls");
 
             var response = await this.Client.ExecutePostTaskAsync(request);
 
-            if (errorAction != null)
+            if (errorHandler != null)
             {
-                errorAction.Invoke(response.StatusCode, response.StatusDescription);
+                errorHandler.Invoke(response.StatusCode, response.StatusDescription);
             }
         }
 

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace httpfsc.Business.Http.FileSystem.Exceptions
+namespace Httpfsc.Business.Http.FileSystem.Exceptions
 {
     public class NotADirectoryException : IOException
     {

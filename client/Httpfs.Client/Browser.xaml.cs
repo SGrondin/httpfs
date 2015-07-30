@@ -9,7 +9,7 @@ using System.Windows.Input;
 
 using Httpfs.Client.UI;
 
-using httpfsc.Business.Http;
+using Httpfsc.Business.Http;
 
 namespace Httpfs.Client
 {
@@ -20,7 +20,7 @@ namespace Httpfs.Client
     {
         #region Fields
 
-        private readonly HttpFileSystemProxy _proxy;
+        private readonly IHttpFileSystemProxy _proxy;
         private readonly ClientConfig _config;
         private Url _currentPath;
 
@@ -179,7 +179,7 @@ namespace Httpfs.Client
 
         private async Task DeleteFolder(Url path)
         {
-            await this._proxy.DeleteFolder(this.CurrentPath.Combine(path), DefaultHttpErrorHandler);
+            await this._proxy.DeleteDirectory(this.CurrentPath.Combine(path), DefaultHttpErrorHandler);
         }
 
         private async Task CreateEmptyFile()
@@ -201,7 +201,7 @@ namespace Httpfs.Client
                 return;
             }
 
-            await this._proxy.CreateFolder(this.CurrentPath.Combine(ans), DefaultHttpErrorHandler);
+            await this._proxy.CreateDirectory(this.CurrentPath.Combine(ans), DefaultHttpErrorHandler);
         }
 
         private async void RefreshList(Url path = null)

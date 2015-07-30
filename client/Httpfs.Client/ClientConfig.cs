@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Configuration;
-using httpfsc.Business.Http;
+
+using Httpfsc.Business.Http;
 
 namespace Httpfs.Client
 {
@@ -16,7 +17,10 @@ namespace Httpfs.Client
         /// </summary>
         public Url LocalRoot
         {
-            get { return ConfigurationManager.AppSettings.Get("LocalRootPath"); }
+            get
+            {
+                return ConfigurationManager.AppSettings.Get("LocalRootPath");
+            }
         }
 
         /// <summary>
@@ -24,7 +28,10 @@ namespace Httpfs.Client
         /// </summary>
         public Url ServerRootPath
         {
-            get { return ConfigurationManager.AppSettings.Get("ServerRootPath"); }
+            get
+            {
+                return ConfigurationManager.AppSettings.Get("ServerRootPath");
+            }
         }
 
         #endregion
