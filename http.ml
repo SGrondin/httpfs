@@ -184,9 +184,9 @@ let delete ips (req, body) =
     match Cohttp.Header.get (Request.headers req) "is-directory" with
     | None -> Lwt_unix.unlink fname >>= ok
     | Some _ ->
-      Lwt_process.with_process ("", [|"rm"; "-r"; fname|]) (fun proc ->
+      Lwt_process.with_process ("", [|"rm"; "-rf"; fname|]) (fun proc ->
         Lwt_io.read_lines proc#stdout |> Lwt_stream.to_list >>= fun lines ->
-          ignore (Lwt_io.printlf "rm -r %s printed %s" fname (String.concat lines));
+          ignore (Lwt_io.printlf "rm -rf %s printed '%s'" fname (String.concat lines));
         proc#status >>= function
         | WEXITED 0 | WSIGNALED 0 | WSTOPPED 0 -> ok ()
         | WEXITED s | WSIGNALED s | WSTOPPED s ->
@@ -204,7 +204,8 @@ let delete ips (req, body) =
     let all_res = res :: responses in
     if List.for_all ~f:((=) `OK <*> Response.status <*> fst) all_res then ok ()
     else critical_error (Failure (
-      List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst) all_res |> String.concat ~sep:"\n")
+      List.map ~f:(Sexp.to_string <*> Response.sexp_of_t <*> fst) all_res
+      |> String.concat ~sep:"\n--\n")
     )
 
 let format_ips =
